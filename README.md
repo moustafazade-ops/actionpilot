@@ -21,9 +21,55 @@ stop the app, remove this generated database file, and restart. Initial seeding
 creates enabled, full, disabled, and zero-capacity slots for the next three days
 in Baku time. No database migration is needed from milestone 1.
 
+## Login and Sign Up
+
+Password-based accounts recovered from historical commit `2d7c8b5` gate all
+workspace pages before demo data loads. Register with a valid email, a 15–128
+character password and matching confirmation, then log in. Emails are normalized
+case-insensitively; accounts store salted Argon2id hashes, never plaintext passwords.
+Duplicate signup is atomic. Five attempts per email in five minutes are allowed;
+this database-backed limit survives new sessions. Login opens Home; sign-out
+clears the entire session, including chat and pending delivery proposals.
+
+### Streamlit Secrets for hosted accounts
+
+Provision a persistent hosted PostgreSQL database reachable from Streamlit Cloud.
+Use a dedicated database role permitted to create tables and read/write its rows.
+The app creates `auth_users` and `auth_attempts` on first signup/login. Add these
+**top-level** entries in Settings → Secrets; use actual provider credentials:
+
+```toml
+AUTH_DATABASE_URL = "postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
+```
+
+`AUTH_DATABASE_URL` is required for hosted accounts. `OPENAI_API_KEY` is required
+only for AI chat. No SMTP/Gmail secrets are used. PostgreSQL requires TLS; provider
+CA configuration permits `verify-ca` or `verify-full`. Connections and statements
+have 10-second timeouts. Secrets take precedence over environment variables for
+account storage. Database/configuration failures show safe errors and keep the
+workspace locked; there is no automatic fallback to ephemeral SQLite.
+
+For **local development only**, explicitly configure `AUTH_SQLITE_PATH` in secrets
+or the environment, for example `data/accounts.db`. Do not configure it on Cloud.
+PostgreSQL takes precedence when both account options are set. Synthetic orders
+continue using the existing separate SQLite database, which can be ephemeral on
+Streamlit Cloud. `OPENAI_MODEL` remains an environment setting, defaulting to
+`gpt-4o-mini`. `.env` files are not automatically loaded.
+
+Accounts persist in PostgreSQL across app restarts; Streamlit login sessions do
+not use persistent cookies and a new browser session may require login again.
+Email format is validated, not mailbox ownership. Password reset, MFA, global/IP
+abuse controls and production role/customer authorization are not implemented.
+Accounts unlock the synthetic demo, including the demo customer selector and Admin;
+order ownership checks and explicit delivery confirmation remain unchanged.
+
+This fix does not deploy automatically. After review/merge, configure the secrets
+on the intended Streamlit deployment and verify account persistence across a reboot.
+
 ## Product workspace
 
-The app opens on **Home**, with a live, read-only preview of the selected synthetic
+After login, the app opens on **Home**, with a live, read-only preview of the selected synthetic
 customer's first order and tomorrow's delivery availability. **Launch AI Assistant**
 opens chat alongside the existing manual order controls; **Explore Dashboard** opens
 owned order cards, actual order counts and delivery planning. Both calls to action

@@ -82,3 +82,26 @@ Result: 202 passed in 5.24s, 0 failed, 0 skipped.
 compileall, pip check and git diff --check passed.
 No frontend implementation differences from origin/main; only UI tests changed.
 OpenAI completions and SDK transport remain mocked. No live API call performed.
+
+Password authentication recovery — 2026-10-09
+Base: main at 5858cb8fcac6e96963711934e02b4163f98d8a9e.
+Recovered auth.py, login.py and account tests from historical 2d7c8b5;
+added account configuration precedence and no-insecure-fallback checks.
+Full command: AUTH_TEST_DATABASE_URL=<disposable TLS PostgreSQL URL>
+  /workspace/actionpilot/.venv/bin/python -m pytest -q
+Result: 234 passed in 8.01s; zero skipped.
+Includes all existing AI/backend/UI tests and four real PostgreSQL integration
+tests: persistence/duplicate/login, concurrent signup, persistent throttling,
+and Streamlit signup/login. PostgreSQL 16 ran locally in a disposable container
+with TLS; no hosted provider configuration was used. OpenAI remains mocked.
+Chromium: Login and Sign Up rendered, password inputs masked, PostgreSQL signup,
+login to Home, logout, and mobile Login render passed. New screenshots are in
+  docs/screenshots/auth/.
+compileall, pip check and git diff --check passed.
+Unchanged from base: views.py, ui.py, branding assets, db.py, seed.py, service.py,
+agent.py, chat_ui.py and Streamlit config. CSS changes are limited to login panels
+and authentication submit-button styling. No deployment or main update performed.
+Unresolved: configure actual AUTH_DATABASE_URL and verify hosted persistence after
+reboot; production roles/customer mapping, email verification, reset/MFA and
+IP/global rate limits are not implemented. The restored main baseline has no AP
+SVG logo; this authentication-only fix does not restore unrelated branding.
