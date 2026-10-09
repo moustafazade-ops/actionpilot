@@ -9,11 +9,32 @@ class ActionError(ValueError):
     """An expected rejection safe to display to the demo user."""
 
 
+MAX_SQLITE_ID = (1 << 63) - 1
+
+
+def _validate_id(value, name):
+    # SQLite coerces strings/floats/bools; enforce identity types before querying.
+    if type(value) is not int or not 1 <= value <= MAX_SQLITE_ID:
+        raise ActionError(f'{name} must be a positive signed 64-bit integer.')
+
+
+def _parse_date(value):
+    try:
+        parsed = Date.fromisoformat(value)
+        if parsed.isoformat() != value:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise ActionError('Date must be YYYY-MM-DD.') from None
+    return parsed
+
+
 def today():
     return datetime.now(ZoneInfo('Asia/Baku')).date()
 
 
 def _order(conn, customer_id, order_id):
+    _validate_id(customer_id, 'customer_id')
+    _validate_id(order_id, 'order_id')
     row = conn.execute(
         'SELECT * FROM orders WHERE id = ? AND customer_id = ?',
         (order_id, customer_id),
@@ -43,12 +64,7 @@ FROM delivery_slots s
 
 
 def get_available_slots(date):
-    try:
-        parsed = Date.fromisoformat(date)
-        if parsed.isoformat() != date:
-            raise ValueError
-    except (ValueError, TypeError):
-        raise ActionError('Date must be YYYY-MM-DD.') from None
+    parsed = _parse_date(date)
     if parsed < today():
         return []
     with connect() as conn:
@@ -56,19 +72,26 @@ def get_available_slots(date):
         return [dict(row) for row in rows if row['enabled'] and row['remaining_capacity'] > 0]
 
 
-def reschedule_order(customer_id, order_id, slot_id, confirmed):
+def reschedule_order(customer_id, order_id, slot_id, confirmed, *, expected_order=None, expected_slot=None):
     if confirmed is not True:
         raise ActionError('Explicit confirmation is required.')
+    _validate_id(customer_id, 'customer_id')
+    _validate_id(order_id, 'order_id')
+    _validate_id(slot_id, 'slot_id')
     with connect() as conn:
         # Serialize writers before checking capacity, including across app sessions.
         conn.execute('BEGIN IMMEDIATE')
         order = _order(conn, customer_id, order_id)
+        if expected_order is not None and any(order[key] != expected_order[key] for key in ('status', 'slot_id')):
+            raise ActionError('Order changed since the proposal. Prepare a new proposal.')
         if order['status'] not in ('pending', 'scheduled'):
             raise ActionError('Only pending or scheduled orders can be rescheduled.')
         slot = conn.execute(SLOT_QUERY + ' WHERE s.id = ?', (slot_id,)).fetchone()
         if slot is None:
             raise ActionError('Delivery slot not found.')
-        if not slot['enabled'] or Date.fromisoformat(slot['date']) < today():
+        if expected_slot is not None and any(slot[key] != expected_slot[key] for key in ('date', 'start_time', 'end_time')):
+            raise ActionError('Delivery slot changed since the proposal. Prepare a new proposal.')
+        if not slot['enabled'] or _parse_date(slot['date']) < today():
             raise ActionError('Delivery slot is unavailable.')
         if order['slot_id'] == slot_id:
             raise ActionError('Order is already assigned to this slot.')
@@ -91,6 +114,7 @@ def list_customers():
 
 
 def list_orders(customer_id):
+    _validate_id(customer_id, 'customer_id')
     with connect() as conn:
         return [dict(r) for r in conn.execute('SELECT * FROM orders WHERE customer_id = ? ORDER BY id', (customer_id,))]
 
