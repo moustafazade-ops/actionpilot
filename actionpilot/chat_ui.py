@@ -7,7 +7,7 @@ from streamlit.errors import StreamlitSecretNotFoundError
 
 from actionpilot.agent import AgentError, SupportAgent, create_client
 from actionpilot.service import ActionError
-from actionpilot.ui import badge, render_proposal_card
+from actionpilot.ui import badge, icon, render_proposal_card
 
 
 def _api_key():
@@ -52,7 +52,7 @@ def render_chat(customer_id):
     with st.container(height=260, border=False):
         if not state['display']:
             st.markdown(
-                '<div class="ap-welcome"><div class="ap-welcome-icon" aria-hidden="true">✦</div>'
+                '<div class="ap-welcome"><div class="ap-welcome-icon">' + icon('spark') + '</div>'
                 '<h4>How can I help with your order?</h4>'
                 '<p>Ask a question below. Here are a few places to start:</p>'
                 '<div class="ap-example">Show my orders</div>'
