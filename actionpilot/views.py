@@ -16,6 +16,34 @@ from actionpilot.ui import (
 )
 
 
+def _set_theme():
+    st.session_state['theme_mode'] = st.session_state['appearance_choice']
+
+
+def render_settings():
+    st.title('Settings')
+    st.caption('Make this workspace feel like yours.')
+    appearance, account = st.columns([1.4, 1], gap='large')
+    with appearance, st.container(border=True, key='settings_appearance'):
+        st.subheader('Appearance')
+        st.write('A fresh cyan and soft green palette, in light or dark.')
+        st.radio('Color theme', ['Light', 'Dark'], key='appearance_choice', horizontal=True,
+                 index=1 if st.session_state.get('theme_mode') == 'Dark' else 0, on_change=_set_theme)
+        st.markdown('<div class="ap-palette"><span class="ap-swatch ap-swatch--cyan"></span>'
+                    '<span class="ap-swatch ap-swatch--green"></span>'
+                    '<span class="ap-swatch ap-swatch--surface"></span>'
+                    '<span>Mint & tide</span></div>', unsafe_allow_html=True)
+        st.caption('Your choice stays active as you move between pages in this session.')
+    with account, st.container(border=True, key='settings_account'):
+        st.subheader('Account')
+        st.caption('Signed-in email')
+        st.text(st.session_state['user_email'])
+        st.divider()
+        st.caption('Workspace time zone')
+        st.write('Asia/Baku')
+        st.caption('The customer selector controls synthetic demo context separately from your account.')
+
+
 def render_order_workspace(customer):
     st.subheader('Order workspace')
     orders = list_orders(customer['id'])

@@ -353,3 +353,35 @@ def test_manual_change_on_dashboard_makes_old_ai_proposal_stale(tmp_path, monkey
     assert len(admin_snapshot()['audit_logs']) == 1
     assert any('Confirmation rejected' in m.value for m in app.get('text'))
     assert not any(b.label == 'Confirm delivery change' for b in app.button)
+
+
+def test_settings_theme_persists_across_navigation_without_writes(tmp_path, monkeypatch):
+    from actionpilot.service import admin_snapshot
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'appearance.db'))
+    app = _app('Home')
+    before = admin_snapshot()
+    next(b for b in app.button if b.key == 'account_settings').click().run()
+    assert not app.exception
+    assert app.session_state['page'] == 'Settings'
+    app.radio(key='appearance_choice').set_value('Dark').run()
+    assert not app.exception
+    assert app.session_state['theme_mode'] == 'Dark'
+    _navigate(app, 'Dashboard')
+    _navigate(app, 'Settings')
+    assert app.radio(key='appearance_choice').value == 'Dark'
+    app.radio(key='appearance_choice').set_value('Light').run()
+    assert app.session_state['theme_mode'] == 'Light'
+    assert admin_snapshot() == before
+    assert any('Your account' in m.value for m in app.sidebar.markdown)
+
+
+def test_theme_switch_keeps_pending_confirmation(tmp_path, monkeypatch):
+    app, client = _mock_chat(monkeypatch, tmp_path)
+    token = app.session_state['support_chat']['agent'].pending.token
+    _navigate(app, 'Settings')
+    app.radio(key='appearance_choice').set_value('Dark').run()
+    _navigate(app, 'AI Assistant')
+    assert not app.exception
+    assert app.session_state['support_chat']['agent'].pending.token == token
+    assert any(b.label == 'Confirm delivery change' for b in app.button)
+    assert client.chat.completions.create.call_count == 2
