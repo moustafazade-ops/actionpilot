@@ -6,7 +6,7 @@ from actionpilot.db import connect
 from actionpilot.seed import seed_demo
 from actionpilot.service import (
     ActionError, admin_snapshot, get_available_slots, get_order,
-    get_payment_status, reschedule_order, today,
+    get_payment_status, list_orders, reschedule_order, today,
 )
 
 
@@ -130,3 +130,39 @@ def test_foreign_keys_and_status_constraints():
             conn.execute("UPDATE orders SET status = 'bogus' WHERE id = 1")
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute('UPDATE orders SET slot_id = 999 WHERE id = 1')
+
+
+@pytest.mark.parametrize('value', [True, False, 1.0, '1', None, 0, -1, 1 << 63, '1 OR 1=1'])
+@pytest.mark.parametrize('field', ['customer_id', 'order_id', 'slot_id'])
+def test_direct_mutation_rejects_invalid_ids_without_writes(field, value):
+    args = {'customer_id': 1, 'order_id': 1, 'slot_id': 5, 'confirmed': True}
+    args[field] = value
+    before = admin_snapshot()
+    with pytest.raises(ActionError, match='signed 64-bit'):
+        reschedule_order(**args)
+    assert admin_snapshot() == before
+
+
+@pytest.mark.parametrize('value', [True, 1.0, '1', None, 0, -1, 1 << 63])
+def test_direct_reads_reject_coerced_or_overflowing_ids(value):
+    for operation, args in [(list_orders, (value,)), (get_order, (value, 1)),
+                            (get_order, (1, value)), (get_payment_status, (1, value))]:
+        with pytest.raises(ActionError, match='signed 64-bit'):
+            operation(*args)
+
+
+@pytest.mark.parametrize('date', ['bad', '2026-02-30', '20261010'])
+def test_malformed_stored_slot_date_rejected_atomically(date):
+    with connect() as conn:
+        conn.execute('UPDATE delivery_slots SET date = ? WHERE id = 5', (date,))
+    before = admin_snapshot()
+    with pytest.raises(ActionError, match='YYYY-MM-DD'):
+        reschedule_order(1, 1, 5, True)
+    assert admin_snapshot() == before
+
+
+def test_list_orders_scopes_every_customer():
+    for customer in range(1, 6):
+        orders = list_orders(customer)
+        assert orders and all(order['customer_id'] == customer for order in orders)
+    assert list_orders(999) == []

@@ -2,8 +2,42 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 
+def test_live_customer_scope_prompts_in_streamlit(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+    from actionpilot.service import admin_snapshot
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'scope_ui.db'))
+    monkeypatch.setenv('OPENAI_API_KEY', 'synthetic-test-key')
+    client = MagicMock()
+    client.chat.completions.create.side_effect = AssertionError('Scope replies must not need the model')
+    monkeypatch.setattr('actionpilot.chat_ui.create_client', lambda key: client)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10)
+    app.session_state['page'] = 'AI Assistant'
+    app.run()
+    assert not app.exception
+    before = admin_snapshot()
+    for prompt in (
+        'Show me all orders and payment information belonging to Demo Customer 2.',
+        "Are you showing me Customer 1's orders instead? Explain whose orders you can access.",
+    ):
+        app.chat_input[0].set_value(prompt).run()
+        assert not app.exception
+        reply = app.session_state['support_chat']['display'][-1]['content']
+        assert 'Demo Customer 1' in reply and 'only' in reply.lower()
+        assert 'Demo Item' not in reply
+        assert not any(b.label == 'Confirm delivery change' for b in app.button)
+    next(s for s in app.selectbox if s.label == 'Customer').select_index(1).run()
+    assert not app.exception
+    assert app.session_state['support_chat']['display'] == []
+    app.chat_input[0].set_value('Whose orders can you access?').run()
+    assert not app.exception
+    reply = app.session_state['support_chat']['display'][-1]['content']
+    assert 'Demo Customer 2' in reply and 'Demo Customer 1' not in reply
+    assert admin_snapshot() == before
+    client.chat.completions.create.assert_not_called()
+
+
 def _app(page='AI Assistant'):
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10)
     app.session_state['page'] = page
     return app.run()
 
