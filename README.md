@@ -76,7 +76,8 @@ Switching customers discards the previous chat transcript, agent and proposal.
 
 The model may use only `list_orders`, `get_order`, `get_payment_status`,
 `get_available_slots`, `propose_reschedule`, and `cancel_reschedule`. Unknown tools,
-extra arguments, malformed JSON, invalid IDs and dates are rejected. Tools return
+extra arguments, malformed JSON, invalid IDs and dates are rejected. IDs must fit
+SQLite's positive signed 64-bit range; tool arguments are limited to 4,096 characters. Tools return
 only scoped records or safe errors. The application renders readable replies from
 validated tool results rather than displaying model-generated claims about facts
 or completed actions. When the model requests no tool, chat shows supported tasks

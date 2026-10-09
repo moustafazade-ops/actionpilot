@@ -19,6 +19,8 @@ from actionpilot.service import (
 DEFAULT_MODEL = 'gpt-4o-mini'
 MAX_ROUNDS = 6
 MAX_CALLS_PER_ROUND = 8
+MAX_SQLITE_ID = (1 << 63) - 1
+MAX_TOOL_ARGUMENT_LENGTH = 4096
 
 
 def _tool(name, description, properties):
@@ -29,7 +31,7 @@ def _tool(name, description, properties):
     }}
 
 
-_ID = {'type': 'integer', 'minimum': 1}
+_ID = {'type': 'integer', 'minimum': 1, 'maximum': MAX_SQLITE_ID}
 TOOLS = [
     _tool('list_orders', 'List orders for the current customer; use when no order ID is known.', {}),
     _tool('get_order', 'Retrieve a current customer order.', {'order_id': _ID}),
@@ -65,17 +67,19 @@ class Proposal:
 def _arguments(name, raw):
     if name not in _ARGUMENTS:
         raise ActionError('Unknown tool. Only the listed support tools are allowed.')
+    if not isinstance(raw, str) or len(raw) > MAX_TOOL_ARGUMENT_LENGTH:
+        raise ActionError('Tool arguments must be JSON text of at most 4,096 characters.')
     try:
         args = json.loads(raw)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
         raise ActionError('Tool arguments must be valid JSON.') from None
     schema = _ARGUMENTS[name]
     if not isinstance(args, dict) or set(args) != set(schema):
         raise ActionError('Tool arguments must match the schema exactly; customer IDs and confirmation flags are not accepted.')
     for key, spec in schema.items():
         value = args[key]
-        if spec['type'] == 'integer' and (type(value) is not int or value < 1):
-            raise ActionError(f'{key} must be a positive integer.')
+        if spec['type'] == 'integer' and (type(value) is not int or not 1 <= value <= MAX_SQLITE_ID):
+            raise ActionError(f'{key} must be an integer between 1 and {MAX_SQLITE_ID}.')
         if spec['type'] == 'string' and (not isinstance(value, str) or not value.strip()):
             raise ActionError(f'{key} must be a non-empty string.')
     return args

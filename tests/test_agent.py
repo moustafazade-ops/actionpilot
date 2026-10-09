@@ -89,6 +89,10 @@ def test_foreign_order_rejected(name):
     ('get_order', '{invalid'), ('get_order', []), ('get_order', {'order_id': True}),
     ('get_order', {'order_id': '1'}), ('get_order', {'order_id': -1}),
     ('get_order', {'order_id': 1.0}), ('get_order', {}),
+    ('get_order', {'order_id': 1 << 100}),
+    ('get_payment_status', {'order_id': 1 << 100}),
+    ('get_order', '[' * 1100 + '0' + ']' * 1100),
+    ('get_order', ' ' * 4097),
     ('get_available_slots', {'date': None}), ('get_available_slots', {'date': 'bad'}),
     ('execute_sql', {'sql': 'DELETE FROM orders'}),
     ('reschedule_order', {'order_id': 1, 'slot_id': 5, 'confirmed': True}),
@@ -327,3 +331,10 @@ def test_old_turns_are_trimmed_without_orphan_tool_messages():
     for i, message in enumerate(agent.messages):
         if message['role'] == 'tool':
             assert agent.messages[i - 1]['tool_calls'][0]['id'] == message['tool_call_id']
+
+
+def test_largest_sqlite_order_id_is_handled_as_missing():
+    from actionpilot.agent import MAX_SQLITE_ID
+    agent = agent_with(response('get_order', {'order_id': MAX_SQLITE_ID}), response())
+    assert 'not found for this customer' in agent.ask('Look up the largest valid ID')
+    assert admin_snapshot()['audit_logs'] == []
