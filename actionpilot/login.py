@@ -2,7 +2,6 @@
 import os
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from actionpilot.auth import AccountStore, AuthError, MAX_PASSWORD_LENGTH, REMEMBER_SECONDS
 from actionpilot.ui import brand
@@ -52,16 +51,17 @@ def _write_remember_cookie():
     if token and (len(token) != 64 or any(c not in '0123456789abcdef' for c in token)):
         raise ValueError('Invalid remembered session token')
     max_age = REMEMBER_SECONDS if token else 0
-    components.html(f'''<script>
+    st.iframe(f'''<script>
     (() => {{
-      const secure = window.location.protocol === 'https:';
-      const local = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+      const page = window.parent.location;
+      const secure = page.protocol === 'https:';
+      const local = ['localhost', '127.0.0.1', '[::1]'].includes(page.hostname);
       if (secure || local || {str(not bool(token)).lower()}) {{
         document.cookie = '{_REMEMBER_COOKIE}={token}; Max-Age={max_age}; Path=/; SameSite=Strict'
           + (secure ? '; Secure' : '');
       }}
     }})();
-    </script>''', height=0, width=0)
+    </script>''', height=1, width=1, tab_index=-1)
 
 
 def _sign_in(email, password, remember=False):

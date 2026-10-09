@@ -214,14 +214,15 @@ def test_remembered_logout_can_retry_failed_revocation(tmp_path, monkeypatch):
     assert AccountStore(sqlite_path=tmp_path / 'accounts.db').restore_remember_session(token) is None
 
 
-def test_remember_cookie_uses_executable_component(monkeypatch):
+def test_remember_cookie_uses_executable_iframe(monkeypatch):
     import actionpilot.login as login
     rendered = []
     monkeypatch.setattr(login.st, 'session_state', {'_cookie_write': 'a' * 64})
-    monkeypatch.setattr(login.components, 'html',
+    monkeypatch.setattr(login.st, 'iframe',
                         lambda body, **kwargs: rendered.append((body, kwargs)))
     login._write_remember_cookie()
     assert len(rendered) == 1
     body, options = rendered[0]
     assert "document.cookie = 'actionpilot_remember=" + 'a' * 64 in body
-    assert options == {'height': 0, 'width': 0}
+    assert 'const page = window.parent.location;' in body
+    assert options == {'height': 1, 'width': 1, 'tab_index': -1}
