@@ -1,7 +1,7 @@
 """Small presentation helpers; no database reads or actions."""
-from base64 import b64encode
 from html import escape
 from pathlib import Path
+from base64 import b64encode
 from functools import lru_cache
 
 import streamlit as st
@@ -57,14 +57,6 @@ def _asset_styles():
 def apply_styles():
     css = Path(__file__).with_name('dashboard.css').read_text() + _asset_styles()
     st.html('<style>' + css + '</style>')
-
-
-def brand_html():
-    logo = Path(__file__).with_name('assets').joinpath('logo.svg').read_bytes()
-    encoded = b64encode(logo).decode('ascii')
-    return ('<div class="ap-brand">'
-            f'<img class="ap-logo" src="data:image/svg+xml;base64,{encoded}" '
-            'alt="ActionPilot AP logo" width="68" height="38">ActionPilot</div>')
 
 
 def badge(status, label=None):

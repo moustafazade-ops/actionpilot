@@ -85,7 +85,11 @@ input::placeholder, textarea::placeholder { color: #a8acb8 !important; }
 [data-testid="stMetric"] { border-bottom: 1px solid #414550; padding: .9rem 0 1.15rem; margin: .3rem 0 1rem; }
 [data-testid="stMetricValue"] { font-family: 'Geist Mono', monospace; font-size: 2.3rem; letter-spacing: -.07em; }
 .ap-brand { display: flex; align-items: center; gap: .7rem; font-size: 1.2rem; font-weight: 650; color: var(--ap-text); letter-spacing: -.04em; }
-.ap-logo { display:block; width:68px; height:38px; object-fit:contain; flex-shrink:0; }
+.ap-logo {
+  display: inline-grid; place-items: center; width: 35px; height: 35px; border-radius: 10px;
+  background: #7b9aff; color: #142045; font-size: .85rem; letter-spacing: -.065em; font-weight: 750;
+  box-shadow: inset 0 1px 0 #ffffff40;
+}
 .ap-eyebrow { color: var(--ap-blue); font-size: .7rem !important; font-weight: 550; letter-spacing: .13em; text-transform: uppercase; margin: 0 0 .75rem; }
 .ap-badge {
   display: inline-flex; align-items: center; padding: .25rem .6rem; border-radius: 999px;
@@ -202,7 +206,7 @@ input::placeholder, textarea::placeholder { color: #a8acb8 !important; }
 .ap-capability p { color: var(--ap-muted); font-size: .76rem; line-height: 1.55; margin: 0; max-width: 180px; }
 .ap-footer { border-top: 1px solid #343740; padding: 1.5rem 0 .5rem; display: flex; align-items: center; flex-wrap: wrap; gap: 1.2rem; }
 .ap-footer .ap-brand { font-size: .95rem; }
-.ap-footer .ap-logo { width:52px; height:28px; }
+.ap-footer .ap-logo { width: 29px; height: 29px; font-size: .7rem; }
 .ap-footer p { font-size: .76rem; margin: 0; color: #b5bac6; }
 .ap-footer > span { font-size: .65rem; color: #a0a6b4; margin-left: auto; }
 /* Animation is progressive: content is visible in browsers without timelines. */
