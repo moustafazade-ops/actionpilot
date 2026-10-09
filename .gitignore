@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ActionPilot local SQLite data
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
