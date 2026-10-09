@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from openai import APIConnectionError, AuthenticationError, RateLimitError
+from openai import APIConnectionError, APITimeoutError, AuthenticationError, InternalServerError, RateLimitError
 from openai.types.chat import ChatCompletion
 
 from actionpilot.agent import AgentError, MAX_ROUNDS, SupportAgent, TOOLS, create_client
@@ -182,6 +182,8 @@ def test_typed_confirmation_cannot_execute():
     ("UPDATE delivery_slots SET enabled = 0 WHERE id = 5", 'unavailable'),
     ("UPDATE delivery_slots SET capacity = 0 WHERE id = 5", 'full'),
     ("UPDATE delivery_slots SET start_time = '08:00' WHERE id = 5", 'changed since'),
+    ("UPDATE delivery_slots SET end_time = '13:00' WHERE id = 5", 'changed since'),
+    ("UPDATE delivery_slots SET date = '2030-01-01' WHERE id = 5", 'changed since'),
     ("UPDATE orders SET slot_id = 5, status = 'scheduled' WHERE id IN (2, 6, 7, 8)", 'full'),
 ])
 def test_execution_revalidates_state(change, message):
@@ -230,6 +232,8 @@ def test_model_configurable(monkeypatch):
 
 @pytest.mark.parametrize('failure', [
     APIConnectionError(request=httpx.Request('POST', 'https://api.openai.com/v1/chat/completions')),
+    APITimeoutError(request=httpx.Request('POST', 'https://api.openai.com/v1/chat/completions')),
+    InternalServerError('private server details', response=httpx.Response(500, request=httpx.Request('POST', 'https://api.openai.com')), body=None),
     AuthenticationError('private error with key', response=httpx.Response(401, request=httpx.Request('POST', 'https://api.openai.com')), body=None),
     RateLimitError('private limit details', response=httpx.Response(429, request=httpx.Request('POST', 'https://api.openai.com')), body=None),
 ])
@@ -338,3 +342,81 @@ def test_largest_sqlite_order_id_is_handled_as_missing():
     agent = agent_with(response('get_order', {'order_id': MAX_SQLITE_ID}), response())
     assert 'not found for this customer' in agent.ask('Look up the largest valid ID')
     assert admin_snapshot()['audit_logs'] == []
+
+
+@pytest.mark.parametrize('raw', [
+    '{"order_id":3,"order_id":1}',
+    '{"order_id":1,"slot_id":5,"slot_id":9,"date":"2030-01-01"}',
+])
+def test_duplicate_tool_arguments_rejected(raw):
+    name = 'propose_reschedule' if 'slot_id' in raw else 'get_order'
+    agent = agent_with(response(name, raw), response())
+    before = admin_snapshot()
+    assert 'valid JSON' in agent.ask('Execute ambiguous arguments')
+    assert agent.pending is None
+    assert admin_snapshot() == before
+
+
+@pytest.mark.parametrize('key', ['', '   ', 123, False, {}])
+def test_invalid_explicit_key_is_sanitized_without_environment_fallback(key, monkeypatch):
+    monkeypatch.setenv('OPENAI_API_KEY', 'synthetic-test-key')
+    with pytest.raises(AgentError, match='OPENAI_API_KEY'):
+        create_client(key)
+
+
+@pytest.mark.parametrize('customer', [True, '1', 1.0, 0, -1, 1 << 63])
+def test_invalid_trusted_customer_rejected(customer):
+    with pytest.raises(ValueError, match='trusted demo customer'):
+        SupportAgent(customer, MagicMock())
+
+
+@pytest.mark.parametrize('cancel_via_chat', [False, True])
+def test_cancellation_preserves_entire_database(cancel_via_chat):
+    agent = prepared_agent()
+    token = agent.pending.token
+    before = admin_snapshot()
+    if cancel_via_chat:
+        agent.client.chat.completions.create.side_effect = [response('cancel_reschedule'), response()]
+        agent.ask('Cancel my proposal')
+    else:
+        agent.cancel(token)
+    with pytest.raises(ActionError):
+        agent.confirm(token)
+    assert admin_snapshot() == before
+
+
+def test_database_read_failure_is_sanitized(monkeypatch):
+    import sqlite3
+    def fail(*args):
+        raise sqlite3.OperationalError('private database path')
+    monkeypatch.setattr('actionpilot.agent.get_order', fail)
+    agent = agent_with(response('get_order', {'order_id': 1}), response())
+    before = admin_snapshot()
+    reply = agent.ask('Show my order')
+    assert 'Database operation failed' in reply and 'private' not in reply
+    assert agent.pending is None
+    assert admin_snapshot() == before
+
+
+def test_overlarge_tool_batch_discards_proposal():
+    from actionpilot.agent import MAX_CALLS_PER_ROUND
+    batch = response('list_orders')
+    batch.choices[0].message.tool_calls *= MAX_CALLS_PER_ROUND + 1
+    agent = agent_with(proposal_response(), batch)
+    before = admin_snapshot()
+    with pytest.raises(AgentError, match='too many tool calls'):
+        agent.ask('Move my order')
+    assert agent.pending is None
+    assert admin_snapshot() == before
+
+
+def test_confirmation_revalidates_date_after_calendar_rollover(monkeypatch):
+    agent = prepared_agent()
+    token = agent.pending.token
+    before = admin_snapshot()
+    later = today() + timedelta(days=3)
+    monkeypatch.setattr('actionpilot.service.today', lambda: later)
+    with pytest.raises(ActionError, match='unavailable'):
+        agent.confirm(token)
+    assert agent.pending is None
+    assert admin_snapshot() == before

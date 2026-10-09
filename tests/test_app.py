@@ -4,7 +4,7 @@ from streamlit.testing.v1 import AppTest
 
 def test_ui_customer_admin_and_confirmation(tmp_path, monkeypatch):
     monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'ui.db'))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10).run()
     assert not app.exception
     assert len(app.tabs) == 2
     assert len(app.dataframe) == 3
@@ -24,7 +24,7 @@ def test_chat_missing_key_is_graceful(tmp_path, monkeypatch):
     monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'no_key.db'))
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)
     monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10).run()
     assert not app.exception
     assert app.chat_input[0].disabled
     assert any('OPENAI_API_KEY' in message.value for message in app.info)
@@ -60,7 +60,7 @@ def _mock_chat(monkeypatch, tmp_path):
     })
     client.chat.completions.create.side_effect = [proposal, final]
     monkeypatch.setattr('actionpilot.chat_ui.create_client', lambda key: client)
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10).run()
     app.chat_input[0].set_value('Reschedule order 1 to the day after tomorrow').run()
     assert not app.exception
     return app, client

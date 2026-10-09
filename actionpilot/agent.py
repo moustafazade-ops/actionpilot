@@ -12,14 +12,13 @@ from uuid import uuid4
 from openai import OpenAI, OpenAIError
 
 from actionpilot.service import (
-    ActionError, get_available_slots, get_order, get_payment_status,
+    ActionError, MAX_SQLITE_ID, get_available_slots, get_order, get_payment_status,
     list_orders, reschedule_order, today,
 )
 
 DEFAULT_MODEL = 'gpt-4o-mini'
 MAX_ROUNDS = 6
 MAX_CALLS_PER_ROUND = 8
-MAX_SQLITE_ID = (1 << 63) - 1
 MAX_TOOL_ARGUMENT_LENGTH = 4096
 
 
@@ -50,7 +49,8 @@ class AgentError(ValueError):
 
 
 def create_client(api_key=None):
-    key = (api_key or os.environ.get('OPENAI_API_KEY', '')).strip()
+    value = api_key if api_key is not None else os.environ.get('OPENAI_API_KEY', '')
+    key = value.strip() if isinstance(value, str) else ''
     if not key:
         raise AgentError('AI chat needs OPENAI_API_KEY in the environment or Streamlit secrets. Manual support remains available.')
     # Bound latency and avoid automatic retries. Never print keys or raw API errors.
@@ -70,7 +70,7 @@ def _arguments(name, raw):
     if not isinstance(raw, str) or len(raw) > MAX_TOOL_ARGUMENT_LENGTH:
         raise ActionError('Tool arguments must be JSON text of at most 4,096 characters.')
     try:
-        args = json.loads(raw)
+        args = json.loads(raw, object_pairs_hook=_unique_arguments)
     except (ValueError, TypeError, RecursionError):
         raise ActionError('Tool arguments must be valid JSON.') from None
     schema = _ARGUMENTS[name]
@@ -82,6 +82,15 @@ def _arguments(name, raw):
             raise ActionError(f'{key} must be an integer between 1 and {MAX_SQLITE_ID}.')
         if spec['type'] == 'string' and (not isinstance(value, str) or not value.strip()):
             raise ActionError(f'{key} must be a non-empty string.')
+    return args
+
+
+def _unique_arguments(pairs):
+    args = {}
+    for key, value in pairs:
+        if key in args:
+            raise ValueError('Duplicate tool argument.')
+        args[key] = value
     return args
 
 
@@ -119,7 +128,7 @@ def _render_observation(observation):
 
 class SupportAgent:
     def __init__(self, customer_id, client, model=None):
-        if type(customer_id) is not int or customer_id < 1:
+        if type(customer_id) is not int or not 1 <= customer_id <= MAX_SQLITE_ID:
             raise ValueError('A trusted demo customer context is required.')
         self._customer_id = customer_id  # supplied by the application, never tool arguments
         self.client = client

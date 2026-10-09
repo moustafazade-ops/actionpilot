@@ -125,6 +125,9 @@ roll back the order and audit log together.
 
 ## Test
 
+See [BACKEND_TESTING.md](BACKEND_TESTING.md) for reproducible backend checks,
+security coverage and the demo authentication/frontend limitations.
+
 ```bash
 python -m pytest -q
 ```
