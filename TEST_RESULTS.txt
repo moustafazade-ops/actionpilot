@@ -82,19 +82,3 @@ Result: 202 passed in 5.24s, 0 failed, 0 skipped.
 compileall, pip check and git diff --check passed.
 No frontend implementation differences from origin/main; only UI tests changed.
 OpenAI completions and SDK transport remain mocked. No live API call performed.
-
-
-Historical login-branch report from 0dee9e1 (before this integration):
-Email verification login — 2026-10-09
-Command: .venv/bin/python -m pytest -q
-Result: 116 passed in 4.19s
-Gmail SMTP is mocked: no live email delivery was attempted.
-Coverage: valid/invalid email, SMTP TLS configuration, missing secrets, failed
-sending, resend cooldown, code replacement, wrong email, incorrect attempts,
-one-use successful verification, exact five-minute expiry, login gate before
-DB access, dashboard navigation after verification and sign-out state clearing.
-Existing AI and service tests pass unchanged; existing UI tests use a verified
-session to exercise the workspace. No backend service/schema/tool changes.
-Startup: Streamlit server started on 127.0.0.1:8504; health endpoint returned ok.
-Dependency check: no broken requirements found. Whitespace check: passed.
-Live deployment: not updated; Streamlit Cloud access/secrets required.

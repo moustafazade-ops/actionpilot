@@ -40,7 +40,7 @@ svg { flex-shrink: 0; }
 [data-testid="stVerticalBlockBorderWrapper"] > div {
   border-color: var(--ap-border) !important; border-radius: var(--ap-radius) !important;
 }
-.st-key-ai_panel, .st-key-order_panel, .st-key-dashboard_orders, .st-key-login_panel {
+.st-key-ai_panel, .st-key-order_panel, .st-key-dashboard_orders {
   background: var(--ap-surface); border-radius: var(--ap-radius); padding: .4rem;
 }
 [data-testid="stSidebar"] { background: #15161a; border-right: 1px solid #2c2e35; }
