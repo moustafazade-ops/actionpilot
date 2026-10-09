@@ -21,45 +21,9 @@ stop the app, remove this generated database file, and restart. Initial seeding
 creates enabled, full, disabled, and zero-capacity slots for the next three days
 in Baku time. No database migration is needed from milestone 1.
 
-## Email verification login
-
-Before accessing any page, enter your email, click **Send code**, then enter the
-six-digit code and click **Verify**. Codes expire after five minutes and allow five
-incorrect attempts. Requests have a 60-second session cooldown. Resending replaces
-the previous code. **Sign out** clears login, customer context, chat and proposals.
-Login is session-local: a new browser session or app restart requires verification.
-
-In Streamlit Cloud, open your app's **Settings → Secrets** and add these top-level
-entries, preserving any existing secrets (including `OPENAI_API_KEY`):
-
-```toml
-EMAIL_USER = "yourgmail@gmail.com"
-EMAIL_PASS = "your_16_character_gmail_app_password"
-```
-
-Replace the placeholders with the sending Gmail address and its Google **App
-Password**, not the normal account password or an API key. Enable Google 2-Step
-Verification, then create an App Password for ActionPilot in the sending account's
-Google security settings. Enter the 16-character password without display spaces.
-If App Passwords are unavailable, check that account's Google/Workspace policy.
-For local development, put the same entries in gitignored `.streamlit/secrets.toml`.
-Never commit or share the real values. No n8n, Gmail API or new dependency is used;
-mail goes through TLS-protected `smtp.gmail.com:465` using Python's standard library.
-
-SMTP acceptance does not guarantee inbox delivery; check spam if necessary. Missing
-secrets and SMTP failures keep the workspace locked and display safe error feedback.
-Email verification unlocks the synthetic demo, including read-only Admin; it does
-not map emails to real customers or grant production roles. The existing synthetic
-customer selector and scoped order checks remain unchanged. Cooldowns and attempts
-are per session, not a shared abuse protection service.
-
-These settings must be applied to a deployment running `feature/frontend` to use
-this login screen. Pushing that branch alone does not change a deployment tracking
-another branch.
-
 ## Product workspace
 
-After email verification, the app opens on **Home**, with a live, read-only preview of the selected synthetic
+The app opens on **Home**, with a live, read-only preview of the selected synthetic
 customer's first order and tomorrow's delivery availability. **Launch AI Assistant**
 opens chat alongside the existing manual order controls; **Explore Dashboard** opens
 owned order cards, actual order counts and delivery planning. Both calls to action
