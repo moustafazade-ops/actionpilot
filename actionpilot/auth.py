@@ -20,6 +20,7 @@ MIN_PASSWORD_LENGTH = 15
 MAX_PASSWORD_LENGTH = 128
 ATTEMPT_WINDOW = 300
 MAX_ATTEMPTS = 5
+REMEMBER_SECONDS = 30 * 24 * 60 * 60
 _UNAVAILABLE = 'Account storage is temporarily unavailable. Please try again later.'
 _BAD_CREDENTIALS = 'Incorrect email or password.'
 
@@ -96,6 +97,9 @@ class AccountStore:
             conn.execute('''CREATE TABLE IF NOT EXISTS auth_attempts (
                 identity TEXT PRIMARY KEY, window_start BIGINT NOT NULL,
                 attempts INTEGER NOT NULL)''')
+            conn.execute('''CREATE TABLE IF NOT EXISTS auth_remember_sessions (
+                token_hash TEXT PRIMARY KEY, email TEXT NOT NULL,
+                password_fingerprint TEXT NOT NULL, expires_at BIGINT NOT NULL)''')
             yield conn
             conn.commit()
         except (sqlite3.Error, psycopg.Error, OSError, ValueError):
@@ -170,3 +174,41 @@ class AccountStore:
                               (_HASHER.hash(password), email, hashed))
             self._clear_attempts(conn, email)
         return email
+
+    def create_remember_session(self, verified_email):
+        """Called only after password verification; store a digest, never the token."""
+        token = secrets.token_hex(32)
+        now = int(time.time())
+        with self._connection() as conn:
+            self._execute(conn, 'DELETE FROM auth_remember_sessions WHERE expires_at <= ?', (now,))
+            user = self._execute(conn, 'SELECT password_hash FROM auth_users WHERE email = ?',
+                                 (verified_email,)).fetchone()
+            if user is None:
+                raise AuthError(_BAD_CREDENTIALS)
+            self._execute(conn, '''INSERT INTO auth_remember_sessions
+                (token_hash, email, password_fingerprint, expires_at) VALUES (?, ?, ?, ?)''',
+                (sha256(token.encode()).hexdigest(), verified_email,
+                 sha256(user[0].encode()).hexdigest(), now + REMEMBER_SECONDS))
+        return token
+
+    def restore_remember_session(self, token):
+        if not _valid_remember_token(token):
+            return None
+        with self._connection() as conn:
+            row = self._execute(conn, '''SELECT s.email, s.password_fingerprint, u.password_hash
+                FROM auth_remember_sessions s JOIN auth_users u ON u.email = s.email
+                WHERE s.token_hash = ? AND s.expires_at > ?''',
+                (sha256(token.encode()).hexdigest(), int(time.time()))).fetchone()
+            if row and secrets.compare_digest(row[1], sha256(row[2].encode()).hexdigest()):
+                return row[0]
+        return None
+
+    def revoke_remember_session(self, token):
+        if _valid_remember_token(token):
+            with self._connection() as conn:
+                self._execute(conn, 'DELETE FROM auth_remember_sessions WHERE token_hash = ?',
+                              (sha256(token.encode()).hexdigest(),))
+
+
+def _valid_remember_token(token):
+    return isinstance(token, str) and len(token) == 64 and all(c in '0123456789abcdef' for c in token)

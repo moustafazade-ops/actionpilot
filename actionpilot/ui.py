@@ -14,6 +14,17 @@ _STATUS_COLORS = {
 
 
 _ASSETS = Path(__file__).with_name('assets')
+LOGO_PATH = _ASSETS / 'ap_green.png'
+
+
+@lru_cache(maxsize=1)
+def brand():
+    logo = b64encode(LOGO_PATH.read_bytes()).decode('ascii')
+    return ('<div class="ap-brand"><span class="ap-logo">'
+            f'<img src="data:image/png;base64,{logo}" alt="ActionPilot logo">'
+            '</span>ActionPilot</div>')
+
+
 _ICONS = {
     'spark': 'message-chatbot', 'bolt': 'bolt', 'shield': 'shield-check',
     'box': 'package', 'wallet': 'credit-card', 'calendar': 'calendar-clock',

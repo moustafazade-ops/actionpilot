@@ -31,11 +31,23 @@ Duplicate signup is atomic. Five attempts per email in five minutes are allowed;
 this database-backed limit survives new sessions. Login opens Home; sign-out
 clears the entire session, including chat and pending delivery proposals.
 
+Select **Remember me** to restore sign-in on the same device for 30 days. The
+browser stores a random token, not a password; the account database stores only
+its SHA-256 digest and expiry. Sign-out revokes the token before clearing the
+session. Deleted accounts and changed password hashes invalidate saved sign-in.
+If revocation fails, sign-out reports an error and can be retried.
+
+Persistent cookies require HTTPS (or localhost for development), use
+`SameSite=Strict`, and use `Secure` on HTTPS. Streamlit's browser script writes
+the cookie, so it is JavaScript-readable rather than `HttpOnly`; persistent
+sign-in shares the demo's existing browser/XSS trust boundary. Do not pass
+untrusted JavaScript to `st.html`.
+
 ### Streamlit Secrets for hosted accounts
 
 Provision a persistent hosted PostgreSQL database reachable from Streamlit Cloud.
 Use a dedicated database role permitted to create tables and read/write its rows.
-The app creates `auth_users` and `auth_attempts` on first signup/login. Add these
+The app creates `auth_users`, `auth_attempts`, and `auth_remember_sessions` on first signup/login. Add these
 **top-level** entries in Settings → Secrets; use actual provider credentials:
 
 ```toml
@@ -57,8 +69,8 @@ continue using the existing separate SQLite database, which can be ephemeral on
 Streamlit Cloud. `OPENAI_MODEL` remains an environment setting, defaulting to
 `gpt-4o-mini`. `.env` files are not automatically loaded.
 
-Accounts persist in PostgreSQL across app restarts; Streamlit login sessions do
-not use persistent cookies and a new browser session may require login again.
+Accounts persist in PostgreSQL across app restarts. Without Remember me,
+a new browser session requires login again.
 Email format is validated, not mailbox ownership. Password reset, MFA, global/IP
 abuse controls and production role/customer authorization are not implemented.
 Accounts unlock the synthetic demo, including the demo customer selector and Admin;
