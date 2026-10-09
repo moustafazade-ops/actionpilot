@@ -124,3 +124,73 @@ def test_streamlit_secret_and_environment_precedence(monkeypatch):
     assert ui._api_key() == 'secret-key'
     monkeypatch.setenv('OPENAI_API_KEY', 'environment-key')
     assert ui._api_key() == 'environment-key'
+
+
+def test_manual_summary_refreshes_after_confirmed_change(tmp_path, monkeypatch):
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'summary.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    assert next(m.value for m in app.metric if m.label == 'Order status') == 'Pending'
+    assert next(m.value for m in app.metric if m.label == 'Payment status') == 'Paid'
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Reschedule delivery').click().run()
+    assert not app.exception
+    assert next(m.value for m in app.metric if m.label == 'Order status') == 'Scheduled'
+    assert any('Current delivery slot: #1' in c.value for c in app.caption)
+    assert next(m.value for m in app.metric if m.label == 'Confirmed changes') == '1'
+    assert any('Database confirmed' in m.value for m in app.success)
+
+
+def test_delivery_date_is_scoped_to_selected_order(tmp_path, monkeypatch):
+    from datetime import timedelta
+    from actionpilot.service import today
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'date_context.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    chosen_day = today() + timedelta(days=2)
+    app.date_input[0].set_value(chosen_day).run()
+    app.selectbox[1].select_index(1).run()
+    assert not app.exception
+    assert app.date_input[0].value == today() + timedelta(days=1)
+    app.selectbox[1].select_index(0).run()
+    assert not app.exception
+    # A restored or reset date must always match the available slot's date.
+    selected_slot = app.selectbox[2].value
+    assert selected_slot['date'] == app.date_input[0].value.isoformat()
+    assert not app.checkbox[0].value
+
+
+def test_customer_with_no_orders_keeps_chat_available(tmp_path, monkeypatch):
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'empty_orders.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    monkeypatch.setattr('actionpilot.service.list_orders', lambda customer_id: [])
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    assert any('no orders yet' in m.value for m in app.info)
+    assert len(app.chat_input) == 1
+    assert not any(b.label == 'Reschedule delivery' for b in app.button)
+    assert len(app.dataframe) == 3
+
+
+def test_blocked_order_shows_status_without_reschedule_controls(tmp_path, monkeypatch):
+    from actionpilot.service import admin_snapshot
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'blocked_order.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    app.selectbox[0].select_index(1).run()
+    assert not app.exception
+    assert next(m.value for m in app.metric if m.label == 'Order status') == 'Dispatched'
+    assert any('does not allow rescheduling' in m.value for m in app.info)
+    assert not app.date_input
+    assert not any(b.label == 'Reschedule delivery' for b in app.button)
+    assert admin_snapshot()['audit_logs'] == []
+
+
+def test_no_customers_displays_empty_state(tmp_path, monkeypatch):
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'empty_customers.db'))
+    monkeypatch.setattr('actionpilot.service.list_customers', lambda: [])
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    assert any('No demo customers' in m.value for m in app.info)
+    assert len(app.dataframe) == 3

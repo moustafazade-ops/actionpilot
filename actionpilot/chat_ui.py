@@ -39,6 +39,9 @@ def render_chat(customer_id):
         except AgentError as exc:
             st.error(str(exc))
     agent = state['agent']
+    if not state['display']:
+        st.caption('Start with an order question')
+        st.text('“Show my orders”\n“Is order 1 paid?”\n“What delivery slots are available tomorrow?”')
     for message in state['display']:
         with st.chat_message(message['role']):
             st.text(message['content'])
@@ -56,8 +59,15 @@ def render_chat(customer_id):
     if agent and agent.pending:
         proposal = agent.pending
         slot = proposal.slot
-        st.warning(f"Review: move order #{proposal.order['id']} to {slot['date']} {slot['start_time']}–{slot['end_time']} (Baku). This has not been executed.")
-        if st.button('Confirm delivery change', key=f'confirm_{proposal.token}'):
+        st.divider()
+        st.subheader('Review delivery change')
+        st.warning('This change has not been executed. Review the details before confirming.')
+        order_column, date_column, time_column = st.columns(3)
+        order_column.metric('Order', f"#{proposal.order['id']}")
+        date_column.metric('Delivery date', slot['date'])
+        time_column.metric('Time (Baku)', f"{slot['start_time']}–{slot['end_time']}")
+        st.caption('Confirm saves the delivery change. Cancel discards this proposal and leaves the order unchanged.')
+        if st.button('Confirm delivery change', key=f'confirm_{proposal.token}', type='primary', width='stretch'):
             try:
                 result = agent.confirm(proposal.token)
             except ActionError as exc:
@@ -68,7 +78,7 @@ def render_chat(customer_id):
                 reply = f"Database confirmed: order #{result['id']} is scheduled in slot #{result['slot_id']}."
             state['display'].append({'role': 'assistant', 'content': reply})
             st.rerun()
-        if st.button('Cancel proposal', key=f'cancel_{proposal.token}'):
+        if st.button('Cancel proposal', key=f'cancel_{proposal.token}', width='stretch'):
             agent.cancel(proposal.token)
             state['display'].append({'role': 'assistant', 'content': 'Delivery proposal cancelled. No order was changed.'})
             st.rerun()
