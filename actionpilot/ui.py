@@ -47,6 +47,7 @@ def _asset_styles():
         ('[class*="st-key-nav_AI"]', 'chat'),
         ('[class*="st-key-nav_Dashboard"]', 'dashboard'),
         ('[class*="st-key-nav_Admin"]', 'admin'),
+        ('[class*="st-key-nav_Settings"]', 'admin'),
     ]:
         svg = b64encode(icon(name).replace('currentColor', 'black').encode()).decode('ascii')
         css += (f'{selector} [data-testid="stIconMaterial"]{{font-size:0;width:19px;height:19px;'
@@ -54,9 +55,51 @@ def _asset_styles():
     return css
 
 
+_THEMES = {
+    'Light': {
+        'scheme': 'light', 'bg': '#f3f9f8', 'surface': '#ffffff',
+        'raised': '#edf5f4', 'sidebar': '#e7f2ef', 'border': '#ccdeda',
+        'text': '#173b3a', 'muted': '#506d6a', 'blue': '#087b89',
+        'accent': '#b8e895', 'accent-hover': '#a4dc7c', 'on-accent': '#234326',
+        'tint': '#d7f2f3', 'hover': '#e0eeeb', 'green-bg': '#eaf6e2',
+        'green-text': '#356522', 'amber-bg': '#fcf0d9', 'amber-text': '#795517',
+        'red-bg': '#fbe7e7', 'red-text': '#a13746',
+        'shadow': '#2a716415', 'glint': '#ffffff80', 'table-filter': 'none',
+    },
+    'Dark': {
+        'scheme': 'dark', 'bg': '#101e21', 'surface': '#182a2d',
+        'raised': '#203539', 'sidebar': '#132427', 'border': '#385356',
+        'text': '#e7f4ef', 'muted': '#a3bdb7', 'blue': '#8bdde3',
+        'accent': '#b8e895', 'accent-hover': '#ceeeb5', 'on-accent': '#234326',
+        'tint': '#24464b', 'hover': '#2b4246', 'green-bg': '#233c2f',
+        'green-text': '#c0e6aa', 'amber-bg': '#423822', 'amber-text': '#efce8d',
+        'red-bg': '#452c33', 'red-text': '#f0b4bb',
+        'shadow': '#07141650', 'glint': '#ffffff15',
+        'table-filter': 'invert(0.9) hue-rotate(180deg)',
+    },
+}
+
+
 def apply_styles():
+    theme = _THEMES.get(st.session_state.get('theme_mode', 'Light'), _THEMES['Light'])
+    tokens = ':root{' + ''.join(f'--ap-{key}:{value};' for key, value in theme.items()) + '}'
     css = Path(__file__).with_name('dashboard.css').read_text() + _asset_styles()
-    st.html('<style>' + css + '</style>')
+    st.html('<style>' + tokens + css + '</style>')
+
+
+def render_account_panel():
+    """Display only the authenticated account, separate from demo customer context."""
+    from actionpilot.login import logout
+    email = st.session_state['user_email']
+    initial = escape(email[:1].upper())
+    with st.container(key='account_panel'):
+        st.markdown('<div class="ap-account-header"><span class="ap-avatar">' + initial
+                    + '</span><div><strong>Your account</strong><small>Support workspace</small>'
+                    + '</div></div>', unsafe_allow_html=True)
+        st.caption(f'Signed in as {email}')
+        st.button('Account settings', key='account_settings', on_click=navigate,
+                  args=('Settings',), width='stretch')
+        st.button('Sign out', on_click=logout, width='stretch')
 
 
 def badge(status, label=None):

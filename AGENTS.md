@@ -12,6 +12,8 @@ Python 3.11+, SQLite, OpenAI SDK, pytest. Dependencies are pinned in requirement
 - `ui.py`, `views.py`, `dashboard.css`: Streamlit presentation. Local Geist fonts
   and Tabler SVGs in `actionpilot/assets` include licenses; no runtime CDN.
   Preserve native widget semantics and reduced-motion support when styling.
+  Light cyan/green is the default. Settings stores the session's light/dark choice
+  in `theme_mode`; keep account identity separate from synthetic customer context.
 
 Setup: `python3 -m venv .venv`, then
 `.venv/bin/python -m pip install -r requirements.txt`.

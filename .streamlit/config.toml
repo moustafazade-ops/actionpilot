@@ -4,9 +4,9 @@ headless = true
 [browser]
 gatherUsageStats = false
 [theme]
-base = "dark"
-primaryColor = "#7b9aff"
-backgroundColor = "#101114"
-secondaryBackgroundColor = "#191b20"
-textColor = "#f2f3f5"
+base = "light"
+primaryColor = "#087b89"
+backgroundColor = "#f3f9f8"
+secondaryBackgroundColor = "#edf5f4"
+textColor = "#173b3a"
 font = "sans serif"
