@@ -11,7 +11,7 @@ from actionpilot.service import (
     list_orders, reschedule_order, today,
 )
 from actionpilot.ui import (
-    badge, feature_card, field, icon, navigate, render_order_card,
+    badge, brand_html, feature_card, field, icon, navigate, render_order_card,
     section_heading, select_customer,
 )
 
@@ -63,7 +63,7 @@ def render_order_workspace(customer):
 def render_home(customers):
     with st.container(key='home_topnav'):
         brand, assistant, dashboard, admin = st.columns([3.4, 1.3, 1.2, .9], gap='small')
-        brand.markdown('<div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>', unsafe_allow_html=True)
+        brand.markdown(brand_html(), unsafe_allow_html=True)
         assistant.button('AI Assistant', key='top_assistant', on_click=navigate, args=('AI Assistant',), width='stretch')
         dashboard.button('Dashboard', key='top_dashboard', on_click=navigate, args=('Dashboard',), width='stretch')
         admin.button('Admin', key='top_admin', on_click=navigate, args=('Admin',), width='stretch')

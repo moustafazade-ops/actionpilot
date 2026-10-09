@@ -32,7 +32,7 @@ h3 { letter-spacing: -.025em; font-size: 1.3rem !important; }
 [data-testid="stMetric"] { background: #101a2bc9; border: 1px solid var(--ap-border); border-radius: 14px; padding: 1rem; }
 [data-testid="stMetricValue"] { font-size: 1.8rem; }
 .ap-brand { display:flex; align-items:center; gap:.7rem; font-size:1.25rem; font-weight:750; color:var(--ap-text); }
-.ap-logo { display:inline-grid; place-items:center; width:38px; height:38px; border-radius:12px; background:linear-gradient(140deg,#547cff,#8360dc); color:white; font-size:.85rem; letter-spacing:-.025em; box-shadow:0 3px 18px #6377f328; }
+.ap-logo { display:block; width:68px; height:38px; object-fit:contain; flex-shrink:0; }
 .ap-eyebrow { color:var(--ap-blue); font-size:.7rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase; margin:0 0 .3rem; }
 .ap-badge { display:inline-flex; align-items:center; padding:.28rem .65rem; border-radius:999px; font-size:.73rem; font-weight:650; line-height:1.4; border:1px solid transparent; }
 .ap-badge--green { background:#17362c; color:#8de5bc; border-color:#285342; }
