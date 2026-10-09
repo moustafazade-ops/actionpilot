@@ -212,3 +212,16 @@ def test_remembered_logout_can_retry_failed_revocation(tmp_path, monkeypatch):
     next(b for b in app.button if b.label == 'Sign out').click().run()
     assert 'logged_in' not in app.session_state
     assert AccountStore(sqlite_path=tmp_path / 'accounts.db').restore_remember_session(token) is None
+
+
+def test_remember_cookie_uses_executable_component(monkeypatch):
+    import actionpilot.login as login
+    rendered = []
+    monkeypatch.setattr(login.st, 'session_state', {'_cookie_write': 'a' * 64})
+    monkeypatch.setattr(login.components, 'html',
+                        lambda body, **kwargs: rendered.append((body, kwargs)))
+    login._write_remember_cookie()
+    assert len(rendered) == 1
+    body, options = rendered[0]
+    assert "document.cookie = 'actionpilot_remember=" + 'a' * 64 in body
+    assert options == {'height': 0, 'width': 0}

@@ -38,10 +38,10 @@ session. Deleted accounts and changed password hashes invalidate saved sign-in.
 If revocation fails, sign-out reports an error and can be retried.
 
 Persistent cookies require HTTPS (or localhost for development), use
-`SameSite=Strict`, and use `Secure` on HTTPS. Streamlit's browser script writes
-the cookie, so it is JavaScript-readable rather than `HttpOnly`; persistent
-sign-in shares the demo's existing browser/XSS trust boundary. Do not pass
-untrusted JavaScript to `st.html`.
+`SameSite=Strict`, and use `Secure` on HTTPS. An executable same-origin
+Streamlit component writes the cookie, so it is JavaScript-readable rather than
+`HttpOnly`; persistent sign-in shares the demo's existing browser/XSS trust
+boundary. Never pass untrusted content into that component.
 
 ### Streamlit Secrets for hosted accounts
 
