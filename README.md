@@ -72,12 +72,16 @@ between pages for the same customer preserves chat and proposals; the service st
 rejects a stale proposal if an order changes before confirmation. Admin remains
 read only and shows all synthetic demo records with committed reschedule audit logs.
 
-The shared dark design uses local CSS and native Streamlit widgets, with no external
-fonts, frontend framework or extra runtime dependencies. On mobile, panels stack
-with the assistant first and navigation available through Streamlit's sidebar.
+The shared charcoal and blue design uses local CSS and native Streamlit widgets,
+with vendored Geist variable fonts and Tabler outline icons. Assets and licenses
+live in `actionpilot/assets`; no CDN, frontend framework or extra runtime dependency
+is required. Home uses an asymmetric feature grid, a live customer workspace and
+CSS entrance, scroll and hover effects. Reduced-motion preferences disable these
+effects. On mobile, panels stack with the assistant first and navigation available
+through Streamlit's sidebar.
 Amounts remain labeled in cents because the database does not specify a currency.
 
-Captured desktop/mobile views are in [docs/screenshots](docs/screenshots/README.md).
+Earlier desktop/mobile captures are in [docs/screenshots](docs/screenshots/README.md).
 
 ## Enable real AI chat
 
@@ -235,3 +239,12 @@ app.py                     Streamlit manual/customer/admin interface
  TEST_RESULTS.txt          actual verification results
  .gitignore                excludes data, environments and secrets
 ```
+
+## Team and deployment handoff
+
+See [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md) for branch ownership and stable interfaces,
+[MILESTONE_FILE_MAP.md](MILESTONE_FILE_MAP.md) for verified milestone provenance,
+[DEPLOYMENT.md](DEPLOYMENT.md) for the combined Streamlit release workflow, and
+[SETUP_VERIFICATION.md](SETUP_VERIFICATION.md) for actual setup verification.
+These additions are prepared on `feature/deploy` for human review; they do not
+automatically merge code or deploy the public demo.

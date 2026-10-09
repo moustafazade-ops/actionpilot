@@ -9,6 +9,9 @@ Python 3.11+, SQLite, OpenAI SDK, pytest. Dependencies are pinned in requirement
 - `actionpilot/service.py`: customer-scoped queries and atomic confirmed writes.
 - `actionpilot/agent.py`: model read/proposal tools; application-owned confirmation.
 - `actionpilot/chat_ui.py`: binds agent to selected customer, renders chat controls.
+- `ui.py`, `views.py`, `dashboard.css`: Streamlit presentation. Local Geist fonts
+  and Tabler SVGs in `actionpilot/assets` include licenses; no runtime CDN.
+  Preserve native widget semantics and reduced-motion support when styling.
 
 Setup: `python3 -m venv .venv`, then
 `.venv/bin/python -m pip install -r requirements.txt`.

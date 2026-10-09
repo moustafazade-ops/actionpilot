@@ -208,7 +208,7 @@ def test_proposal_card_is_review_only_until_confirmed(tmp_path, monkeypatch):
     card = next(m.value for m in app.markdown if 'aria-label="Proposed delivery change"' in m.value)
     assert 'Awaiting confirmation' in card and 'Order #1' in card
     assert proposal.slot['date'] in card
-    assert f"{proposal.slot['start_time']}–{proposal.slot['end_time']}" in card
+    assert f"{proposal.slot['start_time']}-{proposal.slot['end_time']}" in card
     assert 'Baku' in card
     assert not app.success
     assert admin_snapshot()['audit_logs'] == []
