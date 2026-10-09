@@ -5,7 +5,9 @@ validated tool observations, not model assertions about completed actions.
 """
 import json
 import os
+import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -32,6 +34,7 @@ def _tool(name, description, properties):
 
 _ID = {'type': 'integer', 'minimum': 1, 'maximum': MAX_SQLITE_ID}
 TOOLS = [
+    _tool('get_access_scope', 'Explain the selected demo customer scope and access restrictions.', {}),
     _tool('list_orders', 'List orders for the current customer; use when no order ID is known.', {}),
     _tool('get_order', 'Retrieve a current customer order.', {'order_id': _ID}),
     _tool('get_payment_status', 'Check stored payment status.', {'order_id': _ID}),
@@ -42,6 +45,48 @@ TOOLS = [
     _tool('cancel_reschedule', 'Cancel a pending delivery proposal, not the order itself.', {}),
 ]
 _ARGUMENTS = {t['function']['name']: t['function']['parameters']['properties'] for t in TOOLS}
+
+# These references classify a request only. They NEVER establish customer identity.
+_CUSTOMER_REFERENCE = re.compile(
+    r'\b(?:demo[\s_-]+)?customer(?:[\s_-]+(?:id|number))?[\s:#=_-]*'
+    r'(\d+|one|two|three|four|five)\b'
+)
+_CUSTOMER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5}
+_CUSTOMER_ORDINAL = re.compile(r'\b(first|second|third|fourth|fifth)\s+(?:demo\s+)?customer\b')
+_CUSTOMER_ORDINALS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5}
+_SCOPE_QUESTION = re.compile(
+    r'\b(?:access|permissions?|scope|authori[sz](?:ed|ation))\b|'
+    r'\bwhose\s+(?:orders?|data|payments?)\b|'
+    r'\b(?:which|what)\s+customer\b|'
+    r'\b(?:all|other|another|every|different)\s+(?:demo\s+)?customers?\b|'
+    r'\bcustomers\b'
+)
+
+
+def _scope_request(text, customer_id):
+    normalized = unicodedata.normalize('NFKC', text).casefold()
+    if _SCOPE_QUESTION.search(normalized):
+        return True
+    if any(_CUSTOMER_ORDINALS[m.group(1)] != customer_id for m in _CUSTOMER_ORDINAL.finditer(normalized)):
+        return True
+    for match in _CUSTOMER_REFERENCE.finditer(normalized):
+        value = match.group(1)
+        # Compare strings for numeric references to avoid parsing unbounded ints.
+        requested = str(_CUSTOMER_WORDS[value]) if value in _CUSTOMER_WORDS else value.lstrip('0')
+        if requested != str(customer_id):
+            return True
+    return False
+
+
+def _render_scope(customer_id):
+    return (
+        'In this assistant session, I can access orders and payment information only for '
+        f'the currently selected customer: Demo Customer {customer_id} (customer ID {customer_id}). '
+        "I cannot access other customers' orders or payments in this session. "
+        'The demo selector sets this scope; chat and the model cannot change it. '
+        'The selector simulates a session and is not production authentication. '
+        'No delivery change was executed.'
+    )
 
 
 class AgentError(ValueError):
@@ -100,6 +145,8 @@ def _render_observation(observation):
     name = observation['tool']
     if 'error' in result:
         return 'Tool error: ' + result['error']
+    if name == 'get_access_scope':
+        return _render_scope(result['customer_id'])
     if name in ('get_order', 'list_orders'):
         orders = [result['order']] if name == 'get_order' else result['orders']
         if not orders:
@@ -142,6 +189,8 @@ class SupportAgent:
 
     def _execute_tool(self, name, raw):
         args = _arguments(name, raw)
+        if name == 'get_access_scope':
+            return {'customer_id': self.customer_id}
         if name == 'list_orders':
             return {'orders': list_orders(self.customer_id)}
         if name == 'get_order':
@@ -179,10 +228,20 @@ class SupportAgent:
         # New requests invalidate old confirmation tokens; typed "yes" cannot write.
         self.pending = None
         messages = [*self.messages, {'role': 'user', 'content': text}]
+        # Do not silently substitute selected-customer facts for an explicit
+        # foreign-customer request, even if the planner would call list_orders.
+        if _scope_request(text, self.customer_id):
+            reply = _render_scope(self.customer_id)
+            self._remember_turn(messages, reply)
+            return reply
         observations = []
         system = {
             'role': 'system', 'content': (
                 f'You are ActionPilot customer support. Today in Baku is {today().isoformat()}. '
+                f'The selected demo customer is Demo Customer {self.customer_id}. '
+                'Only this customer\'s orders and payments are accessible in this assistant session. '
+                'For access questions or requests for other customers, use get_access_scope; '
+                'do not substitute the selected customer\'s orders for a different customer. '
                 'Use tools for all order, payment and slot facts. Customer context is supplied '
                 'by the application; never request or supply a customer ID. Never run SQL. '
                 'For delivery changes, first check available slots then propose one. Ask for '
@@ -234,13 +293,20 @@ class SupportAgent:
             reply = ('I can look up your orders, check payment status, or propose a delivery change. '
                      'Please include an order number and a preferred delivery date when relevant. '
                      'No delivery change was executed.')
+        # Identity comes from the application, including for unrecognized
+        # phrasing. Never display untrusted model descriptions of ownership.
+        if not any(o['tool'] == 'get_access_scope' and 'error' not in o['result'] for o in observations):
+            reply = _render_scope(self.customer_id) + '\n\n' + reply
+        self._remember_turn(messages, reply)
+        return reply
+
+    def _remember_turn(self, messages, reply):
         messages.append({'role': 'assistant', 'content': reply})
         # Trim by whole turns, preserving tool-call/result pairing.
         user_starts = [i for i, m in enumerate(messages) if m['role'] == 'user']
         if len(user_starts) > 6:
             messages = messages[user_starts[-6]:]
         self.messages = messages
-        return reply
 
     def confirm(self, token):
         proposal = self.pending

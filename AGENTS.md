@@ -21,6 +21,8 @@ SQL or execution/confirmation flags as model tool arguments. Require literal Tru
 for service confirmation and a one-use token for chat confirmation. Revalidate
 ownership/status/window/capacity under BEGIN IMMEDIATE, commit order and audit
 together, return success after commit. Cancellation must never write.
+Handle explicit foreign-customer/access questions with application-owned scope
+replies. Keep get_access_scope argument-free and never display raw model prose.
 
 The customer selector and public admin view are demo features, not production
 authentication/authorization. Same-day intraday cutoffs are not implemented.

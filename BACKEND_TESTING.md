@@ -23,6 +23,7 @@ Current exact results and tested runtime are in `TEST_RESULTS.txt`.
 | Requirement | Enforcement and regression coverage |
 | --- | --- |
 | Customer-scoped access | Parameterized queries match both order and customer; list/payment/read/write tests reject foreign records. Service and agent reject coerced, overflowing and invalid IDs. Tools cannot supply customer identity. |
+| Scope explanations | Both reported live prompts run in sequence in agent and Streamlit tests. Explicit foreign-customer requests and access questions return application-owned scope replies before model execution or order reads. Normal replies identify the selected customer. The argument-free scope tool rejects identity overrides; customer switching clears old history. |
 | Explicit confirmation | Service accepts literal boolean `True` only. Chat uses an application-owned one-use token; typed confirmation, wrong/stale/replayed tokens and model mutation tools cannot execute. Streamlit tests exercise manual and chat confirmation. |
 | Cancellation | Both cancellation paths discard proposals. Full database snapshots prove orders, slots and audit records remain unchanged; cancelled tokens cannot execute. |
 | Availability at commit | `BEGIN IMMEDIATE` serializes writers before ownership, status, enabled/date/capacity checks. Tests cover concurrent last-place booking, filled/disabled slots and changed order/window after proposal. |
@@ -51,6 +52,9 @@ Current exact results and tested runtime are in `TEST_RESULTS.txt`.
   rules. Invalid stored dates are safely rejected, not repaired or migrated.
 - Mocked API tests verify SDK serialization and error paths, not live model
   behavior, account access, network availability, or prompt reliability.
+  The text classifier recognizes common English demo customer references; it is
+  not a general language authorization system. Scoped service queries enforce
+  ownership independently of request phrasing. See BACKEND_REVIEW.md for findings.
 - Streamlit AppTest verifies interface flows; browser rendering and live AI
   behavior are not part of this automated suite. Missing/unwritable storage at
   initial app startup is not handled by a new recovery screen.
