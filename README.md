@@ -97,13 +97,23 @@ service with that ID. No tool accepts a `customer_id`, `confirmed`, or SQL argum
 The model cannot select another customer's context or execute a database mutation.
 Switching customers discards the previous chat transcript, agent and proposal.
 
-The model may use only `list_orders`, `get_order`, `get_payment_status`,
+Explicit requests for another demo customer and access-permission questions are
+answered by the application before calling the model or reading orders. The reply
+identifies the selected customer and explains the demo selector's session scope.
+Normal order replies also identify that scope, so selected-customer results cannot
+silently appear to belong to a requested foreign customer. Common numbered,
+spelled-out and ordinal demo customer references are recognized conservatively;
+ownership-scoped service queries remain the authorization boundary for all wording.
+
+The model may use only `get_access_scope`, `list_orders`, `get_order`, `get_payment_status`,
 `get_available_slots`, `propose_reschedule`, and `cancel_reschedule`. Unknown tools,
 extra arguments, malformed JSON, invalid IDs and dates are rejected. IDs must fit
 SQLite's positive signed 64-bit range; tool arguments are limited to 4,096 characters. Tools return
 only scoped records or safe errors. The application renders readable replies from
 validated tool results rather than displaying model-generated claims about facts
-or completed actions. When the model requests no tool, chat shows supported tasks
+or completed actions. `get_access_scope` takes no arguments and renders the trusted
+application customer context. When the model requests no tool, chat explains the
+actual customer scope, shows supported tasks
 and requests an order/date as needed. This keeps replies grounded in the database.
 
 A proposal holds the order and delivery window reviewed by the user and a random

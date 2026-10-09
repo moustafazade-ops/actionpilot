@@ -42,3 +42,18 @@ and network access to api.openai.com. No API success is claimed by these tests.
 Previous Milestone 1 verification:
 34 passed in 0.83s; synthetic database initialized with 5 customers, 10 orders,
 12 delivery slots and 0 initial audit logs.
+
+Customer scope regression fix — 2026-10-09, fix_from_main
+Baseline: 103 passed in 4.62s.
+New scope tests before implementation: 28 failed as expected (foreign requests
+retrieved selected-customer orders; access explanations and scope tool absent).
+Extended wording check: 5 failed, 20 passed; classifiers then corrected.
+An initial full run failed the new UI test because it selected the Order widget
+instead of Customer; fixed the test selector to use the Customer label.
+Final full suite: .venv/bin/python -m pytest -q
+Result: 142 passed in 5.65s, 0 failed, 0 skipped.
+compileall, pip check and git diff --check passed.
+Both live prompts are tested in sequence in the agent and Streamlit; all model
+responses remain mocked. No live API call or browser visual QA was performed.
+Code review reproduced the manual reviewed-window race in an isolated database:
+reviewed=09:00, committed=08:00. See BACKEND_REVIEW.md for the remaining finding.
