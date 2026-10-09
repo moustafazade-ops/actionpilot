@@ -30,43 +30,14 @@ Current exact results and tested runtime are in `TEST_RESULTS.txt`.
 | Atomicity | Order update and audit insertion share one transaction. Forced audit failure proves rollback; failed confirmation consumes its token. |
 | Errors/configuration | Invalid orders, IDs/dates, malformed/duplicate/oversized JSON, unknown tools, database read failures, missing/invalid keys, API authentication/rate-limit/connectivity/timeout/server failures, malformed responses and tool budgets are covered. API/database tool errors do not expose private details. |
 
-## Account authentication coverage
-
-`tests/test_auth.py` uses real Argon2id hashes and isolated SQLite account files:
-normalization/validation, password limits and mismatch, salted hashes, persistence,
-case-insensitive duplicates, concurrent registration, uniform login errors, durable
-attempt limits/expiry, TLS configuration and sanitized storage failures.
-`tests/test_login.py` exercises the full Streamlit account flow, failures, repeated
-navigation, new sessions, logout cleanup, Home reset for a different user and
-rejection of legacy passwordless session flags. Hash upgrades and corrupt stored
-hashes are covered as well. No SMTP or real user credentials
-are used. `AUTH_DATABASE_URL` selects hosted PostgreSQL with no ephemeral fallback.
-
-### PostgreSQL integration tests
-
-Use a dedicated **disposable test database**, never your live account database:
-
-```bash
-AUTH_TEST_DATABASE_URL='postgresql://TEST_USER:TEST_PASSWORD@TEST_HOST/TEST_DB?sslmode=require' python -m pytest -q
-```
-
-`tests/test_auth_postgres.py` runs real persistence, duplicates, concurrent signup,
-shared throttling and Streamlit sign-up/login checks. Without this environment
-variable its four tests skip; all SQLite/service/UI/AI tests still run offline.
-PostgreSQL verification for this branch used a temporary local PostgreSQL 16 server
-behind a localhost TLS proxy because the test-only pgserver binary lacks native
-TLS. Tests assert that the psycopg client uses TLS. No hosted provider credentials
-were available, so production network/permissions/persistence need the documented
-Cloud smoke test. The test runtime/proxy is not an app dependency or deployment.
-
 ## Limitations and handoff
 
 - This is a synthetic demo, **not verified production customer isolation**.
-  Any registered demo account can select another demo customer, and the demo
+  Anyone using the frontend can select another demo customer, and the public
   admin tab displays all orders and audit logs. Service isolation applies only
   to the customer ID supplied by a trusted caller. Deployment needs real
-  customer-account binding and admin authorization. Login authenticates accounts
-  but preserves the synthetic selector and existing Admin view.
+  authentication and admin authorization; coordinate that frontend work with
+  Magomed. `app.py` and the frontend interface are unchanged by this branch.
 - Python callers can invoke the service with `True`; the service is not an
   authentication boundary. The application must establish identity and consent.
 - The manual form revalidates current availability/capacity but does not pass
@@ -88,6 +59,6 @@ Cloud smoke test. The test runtime/proxy is not an app dependency or deployment.
   behavior are not part of this automated suite. Missing/unwritable storage at
   initial app startup is not handled by a new recovery screen.
 
-Account libraries and account tables are added; order/service/AI schemas and
-confirmation rules are preserved. Never commit API keys, `.env`, Streamlit secrets,
+No new dependencies, production authentication, schema migrations or frontend
+changes are introduced. Never commit API keys, `.env`, Streamlit secrets,
 generated databases or virtual environments.
