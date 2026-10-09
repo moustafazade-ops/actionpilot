@@ -21,78 +21,9 @@ stop the app, remove this generated database file, and restart. Initial seeding
 creates enabled, full, disabled, and zero-capacity slots for the next three days
 in Baku time. No database migration is needed from milestone 1.
 
-## Login and Sign Up
-
-The app opens on **Login / Sign Up** before any demo data or AI features load.
-Sign up with Gmail or another valid email, a 15–128 character password and matching
-confirmation. Accounts use case-insensitive normalized email addresses and salted
-**Argon2id** password hashes; plaintext passwords are never written to storage.
-Duplicate accounts are rejected atomically. After creating an account, open Login.
-Wrong passwords and unknown accounts return the same error. Five attempts per email
-in five minutes are allowed; this database-backed limit survives new UI sessions.
-Successful authentication clears the attempt counter.
-
-Login sets `st.session_state["logged_in"] = True` and `user_email`, then opens Home.
-The sidebar displays the email. **Sign out** clears the entire session, including
-customer context, transcripts, pending proposals and password widgets. Navigation
-and reruns retain authentication. Browser reloads, new tabs and app restarts may
-start a new Streamlit session and require login again; accounts stay in the database.
-There is no persistent browser login cookie.
-
-### Streamlit Cloud setup (required)
-
-1. Provision a **hosted PostgreSQL database** reachable from Streamlit Cloud over
-   TLS. Use a dedicated account database and a database role able to create tables
-   and read/insert/update/delete its records. The app creates `auth_users` and
-   `auth_attempts` on the first sign-up/login request; no manual migration is needed.
-2. In the app's **Settings → Secrets**, add the top-level connection URL below.
-   Copy your database provider's actual connection string; preserve existing
-   `OPENAI_API_KEY` and other secrets. Never commit real credentials.
-3. Deploy repository `moustafazade-ops/actionpilot`, branch `codex/login-signup`,
-   entry point `app.py`, Python 3.12 (3.11 is also supported), then reboot/redeploy.
-   A branch push alone does not switch the existing public app's deployment.
-4. Create an account, log in, sign out, reboot the app and log in again to confirm
-   persistence against your configured hosted database.
-
-```toml
-AUTH_DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require"
-# Keep the existing OPENAI_API_KEY for AI features.
-```
-
-PostgreSQL connections have TLS enforced, a 10-second connection timeout and a
-10-second statement timeout. `sslmode=verify-ca` / `verify-full` are also supported
-when the provider's CA is configured. Storage/configuration failures show safe
-messages and keep the workspace locked; there is **no silent SQLite fallback**.
-Streamlit Cloud's local disk is not guaranteed to persist, so do not configure
-`AUTH_SQLITE_PATH` there. The existing SQLite **synthetic order demo** is separate
-and retains its existing lifecycle.
-
-### Local development
-
-Put this development-only setting in gitignored `.streamlit/secrets.toml`, or
-export it in your shell before starting Streamlit:
-
-```toml
-AUTH_SQLITE_PATH = "data/accounts.db"
-```
-
-Alternatively use `AUTH_DATABASE_URL` in local Streamlit secrets to exercise the
-same hosted PostgreSQL backend. PostgreSQL takes precedence when both are set.
-The SQLite account file is separate from demo orders and is ignored by Git.
-
-The prior six-digit SMTP gate has been replaced so passwordless verification cannot
-bypass account authentication. `EMAIL_USER` / `EMAIL_PASS` are no longer required;
-previously verified users must create an account. Email **format** is validated;
-mailbox ownership/deliverability is not verified. Password recovery and MFA are
-outside this change. The database-backed email limit is not global/IP abuse control.
-
-Accounts unlock the synthetic demo, including Admin. They do not assign real orders
-or production admin roles: the customer selector still simulates customer context,
-and all customer-scoped reads, transactional writes and AI confirmation rules remain.
-
 ## Product workspace
 
-After login, the app opens on **Home**, with a live, read-only preview of the selected synthetic
+The app opens on **Home**, with a live, read-only preview of the selected synthetic
 customer's first order and tomorrow's delivery availability. **Launch AI Assistant**
 opens chat alongside the existing manual order controls; **Explore Dashboard** opens
 owned order cards, actual order counts and delivery planning. Both calls to action
@@ -252,9 +183,7 @@ requires a valid key, model access and network access to `api.openai.com`.
 ```text
 app.py                     Streamlit manual/customer/admin interface
  actionpilot/
-   auth.py                 Argon2id accounts, PostgreSQL/local SQLite and attempt limits
-   login.py                Login / Sign Up forms and session lifecycle
-   db.py                   SQLite demo schema and connection lifecycle
+   db.py                   SQLite schema and connection lifecycle
    seed.py                 5 synthetic customers, 10 orders, 12 slots
    service.py              ownership checks and transactional actions
    agent.py                OpenAI tool loop, validation and confirmation state
@@ -266,7 +195,7 @@ app.py                     Streamlit manual/customer/admin interface
    test_service.py         existing operation and concurrency tests
    test_agent.py           mocked AI and SDK transport tests
    test_app.py             manual and AI Streamlit interface tests
- requirements.txt          pinned Streamlit, OpenAI SDK and account libraries
+ requirements.txt          Streamlit, pytest, official OpenAI SDK
  pytest.ini                test discovery/import configuration
  .env.example              safe configuration template
  .streamlit/config.toml     native Streamlit dark theme
