@@ -5,6 +5,8 @@ from streamlit.testing.v1 import AppTest
 def _app(page='AI Assistant'):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
     app.session_state['page'] = page
+    app.session_state['logged_in'] = True
+    app.session_state['login_email'] = 'verified@example.com'
     return app.run()
 
 
