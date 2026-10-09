@@ -1,8 +1,8 @@
 ActionPilot verification — 2026-10-09
 
-Milestone 2 full suite (includes all Milestone 1 tests)
+Merged main / Milestone 2 full suite (includes all Milestone 1 tests)
 Command: .venv/bin/python -m pytest -q
-Result: 88 passed in 2.62s
+Result: 93 passed in 2.61s
 Runtime: Python 3.12.14; Streamlit 1.65.0; pytest 9.1.1; OpenAI SDK 2.54.0
 Python 3.11 compatibility is intended; this environment tested Python 3.12.
 
@@ -10,6 +10,12 @@ Additional checks:
 - python -m compileall -q actionpilot app.py tests: passed
 - python -m pip check: No broken requirements found.
 - git diff --check: passed
+
+Merge validation:
+- GitHub main already contained Milestone 2 via PR #2; no conflicts existed.
+- Fixed an OverflowError caused by tool order IDs exceeding SQLite signed 64-bit range.
+- Added rejection of oversized/deeply nested tool arguments and regression coverage.
+- Valid maximum SQLite ID is handled as a missing order without a crash.
 
 Milestone 2 coverage:
 - Mocked typed AI tool responses for order/payment reads and slot discovery.
