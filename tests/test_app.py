@@ -13,7 +13,7 @@ def test_live_customer_scope_prompts_in_streamlit(tmp_path, monkeypatch):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10)
     app.session_state['page'] = 'AI Assistant'
     app.session_state['logged_in'] = True
-    app.session_state['login_email'] = 'verified@example.com'
+    app.session_state['user_email'] = 'verified@example.com'
     app.run()
     assert not app.exception
     before = admin_snapshot()
@@ -42,7 +42,7 @@ def _app(page='AI Assistant'):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=10)
     app.session_state['page'] = page
     app.session_state['logged_in'] = True
-    app.session_state['login_email'] = 'verified@example.com'
+    app.session_state['user_email'] = 'verified@example.com'
     return app.run()
 
 

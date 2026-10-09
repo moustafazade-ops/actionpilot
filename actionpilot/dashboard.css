@@ -62,11 +62,13 @@ svg { flex-shrink: 0; }
   border-color: #788499; background: #2a2d36; color: var(--ap-text);
 }
 [data-testid="stButton"] button:active, [data-testid="stFormSubmitButton"] button:active { transform: scale(.98); }
-[data-testid="stButton"] button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"] {
+[data-testid="stButton"] button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"],
+.st-key-login_panel button[kind="primaryFormSubmit"] {
   background: var(--ap-accent); border-color: var(--ap-accent); color: #101c3c;
   box-shadow: inset 0 1px 0 #ffffff35, 0 4px 10px #0c0e1620;
 }
-[data-testid="stButton"] button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
+[data-testid="stButton"] button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+.st-key-login_panel button[kind="primaryFormSubmit"]:hover {
   background: #9bb2ff; border-color: #b2c2ff; color: #101c3c;
 }
 button:focus-visible, input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {

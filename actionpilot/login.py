@@ -1,124 +1,92 @@
-"""Session-local email verification using Gmail SMTP and Streamlit secrets."""
-import hmac
-import re
-import secrets
-import smtplib
-import ssl
-import time
-from email.message import EmailMessage
+"""Native Streamlit account forms and server-owned session authentication."""
+import os
 
 import streamlit as st
 
-CODE_LIFETIME = 300
-RESEND_DELAY = 60
-MAX_ATTEMPTS = 5
-_CHALLENGE_KEYS = ('verification_code', 'verification_time', 'verification_email',
-                   'verification_attempts')
+from actionpilot.auth import AccountStore, AuthError, MAX_PASSWORD_LENGTH
 
 
-def clear_challenge():
-    for key in _CHALLENGE_KEYS:
-        st.session_state.pop(key, None)
-
-
-def valid_email(email):
-    return (len(email) <= 254 and
-            re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,}", email) is not None)
-
-
-def send_verification_code(to_email):
-    """Return safe feedback; activate a challenge only after SMTP accepts delivery."""
-    to_email = to_email.strip()
-    if not valid_email(to_email):
-        return False, 'Enter a valid email address.'
-    now = time.time()
-    last_send = st.session_state.get('verification_last_send')
-    if last_send is not None and now - last_send < RESEND_DELAY:
-        return False, 'Please wait 60 seconds before requesting another code.'
+def account_store():
+    """Secrets take precedence; SQLite is an explicit development-only option."""
     try:
-        sender = st.secrets['EMAIL_USER']
-        password = st.secrets['EMAIL_PASS']
-        if not isinstance(sender, str) or not isinstance(password, str) or not sender or not password:
-            raise KeyError('email configuration')
-    except (KeyError, FileNotFoundError):
-        return False, 'Email login is not configured. Add EMAIL_USER and EMAIL_PASS in Streamlit secrets.'
-
-    clear_challenge()
-    # Count send attempts too, preventing immediate retries on SMTP failures.
-    st.session_state['verification_last_send'] = now
-    code = str(secrets.randbelow(900000) + 100000)
-    message = EmailMessage()
-    message['Subject'] = 'ActionPilot Verification Code'
-    message['From'] = sender
-    message['To'] = to_email
-    message.set_content(f'Your ActionPilot verification code is: {code}\n\n'
-                        'This code expires in 5 minutes. Do not share it.\n'
-                        'If you did not request this code, ignore this email.')
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15,
-                              context=ssl.create_default_context()) as server:
-            server.login(sender, password)
-            refused = server.send_message(message)
-            if refused:
-                raise smtplib.SMTPException('Recipient refused')
-    except (smtplib.SMTPException, OSError, ValueError):
-        return False, 'Could not send the code. Check Gmail SMTP settings and try again after 60 seconds.'
-
-    st.session_state.update(verification_code=code, verification_time=time.time(),
-                            verification_email=to_email, verification_attempts=0)
-    return True, 'Code sent. Check your inbox or spam folder. It expires in 5 minutes.'
-
-
-def verify_code(email, code):
-    state = st.session_state
-    if 'verification_code' not in state:
-        return False, 'Request a new code first.'
-    if time.time() - state['verification_time'] >= CODE_LIFETIME:
-        clear_challenge()
-        return False, 'Code expired'
-    if email.strip() != state['verification_email']:
-        return False, 'Your email changed. Send a new code for this address.'
-    state['verification_attempts'] += 1
-    if re.fullmatch(r'[0-9]{6}', code.strip()) and hmac.compare_digest(code.strip(), state['verification_code']):
-        state['logged_in'] = True
-        state['login_email'] = state['verification_email']
-        clear_challenge()
-        return True, 'Email verified.'
-    if state['verification_attempts'] >= MAX_ATTEMPTS:
-        clear_challenge()
-        return False, 'Too many incorrect attempts. Request a new code.'
-    return False, 'Incorrect code. Please try again.'
+        database_url = st.secrets.get('AUTH_DATABASE_URL')
+        sqlite_path = st.secrets.get('AUTH_SQLITE_PATH')
+    except FileNotFoundError:
+        database_url = sqlite_path = None
+    return AccountStore(database_url=database_url,
+                        sqlite_path=sqlite_path or os.environ.get('AUTH_SQLITE_PATH'))
 
 
 def logout():
-    # Clear customer context, transcripts and pending actions along with login.
+    # Remove customer context, transcripts, pending actions and credential widgets.
     for key in list(st.session_state):
         del st.session_state[key]
 
 
+def _sign_in(email, password):
+    verified_email = account_store().login(email, password)
+    logout()
+    st.session_state['logged_in'] = True
+    st.session_state['user_email'] = verified_email
+    st.session_state['page'] = 'Home'
+    st.rerun()
+
+
+def _finish_submission(tab, message, success=False):
+    st.session_state['_auth_feedback'] = (tab, message, success)
+    # clear_on_submit is a browser behavior; also remove credentials server-side.
+    for key in ('signin_password', 'signup_password', 'signup_confirmation'):
+        st.session_state.pop(key, None)
+    st.rerun()
+
+
 def require_login():
-    if st.session_state.get('logged_in') is True:
+    state = st.session_state
+    if state.get('logged_in') is True and isinstance(state.get('user_email'), str) and state['user_email']:
         return
-    _, center, _ = st.columns([1, 2, 1])
+    # Existing passwordless sessions must authenticate with their new account.
+    if state.get('logged_in'):
+        logout()
+    feedback = state.pop('_auth_feedback', None)
+    _, center, _ = st.columns([1, 1.6, 1])
     with center:
         st.markdown('<div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>', unsafe_allow_html=True)
-        st.title('Your support workspace awaits.')
-        st.caption('Verify your email to open ActionPilot. No password required.')
+        st.markdown('<p class="ap-eyebrow">Your support workspace</p>', unsafe_allow_html=True)
+        st.title('Welcome to ActionPilot.')
+        st.caption('Sign in to manage support, explore your dashboard, and work with your AI assistant.')
         with st.container(border=True, key='login_panel'):
-            email = st.text_input('Email address', key='login_email_input', placeholder='you@example.com', max_chars=254)
-            if st.button('Send code', type='primary', width='stretch'):
-                with st.spinner('Sending verification code…'):
-                    ok, feedback = send_verification_code(email)
-                (st.success if ok else st.error)(feedback)
-            st.caption('Enter the six-digit code from your email within 5 minutes. Resend after 60 seconds.')
-            with st.form('verify_login'):
-                code = st.text_input('Verification code', max_chars=6, placeholder='6-digit code')
-                submitted = st.form_submit_button('Verify', type='primary', width='stretch')
-            if submitted:
-                ok, feedback = verify_code(email, code)
-                if ok:
-                    st.rerun()
-                st.error(feedback)
-        st.caption('Synthetic demo workspace · Email verification does not assign a customer account. '
-                   'Keep this tab open while checking your email.')
+            login_tab, signup_tab = st.tabs(['Login', 'Sign Up'])
+            with login_tab:
+                st.subheader('Welcome back')
+                if feedback and feedback[0] == 'login':
+                    st.error(feedback[1])
+                with st.form('login_form', clear_on_submit=True):
+                    email = st.text_input('Email address', key='signin_email', placeholder='you@gmail.com', max_chars=254)
+                    password = st.text_input('Password', type='password', key='signin_password', max_chars=MAX_PASSWORD_LENGTH)
+                    submitted = st.form_submit_button('Log in', type='primary', width='stretch')
+                if submitted:
+                    try:
+                        with st.spinner('Signing in…'):
+                            _sign_in(email, password)
+                    except AuthError as error:
+                        _finish_submission('login', str(error))
+            with signup_tab:
+                st.subheader('Create your account')
+                st.caption('Use your Gmail or another email address and a password with 15–128 characters.')
+                if feedback and feedback[0] == 'signup':
+                    (st.success if feedback[2] else st.error)(feedback[1])
+                with st.form('signup_form', clear_on_submit=True):
+                    email = st.text_input('Email address', key='signup_email', placeholder='you@gmail.com', max_chars=254)
+                    password = st.text_input('Password', type='password', key='signup_password', max_chars=MAX_PASSWORD_LENGTH)
+                    confirmation = st.text_input('Confirm password', type='password', key='signup_confirmation', max_chars=MAX_PASSWORD_LENGTH)
+                    submitted = st.form_submit_button('Create account', type='primary', width='stretch')
+                if submitted:
+                    try:
+                        with st.spinner('Creating your account…'):
+                            account_store().sign_up(email, password, confirmation)
+                    except AuthError as error:
+                        _finish_submission('signup', str(error))
+                    else:
+                        _finish_submission('signup', 'Account created. Open the Login tab to sign in.', True)
+        st.caption('ActionPilot demo · The workspace uses synthetic customers and orders.')
     st.stop()

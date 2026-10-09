@@ -12,7 +12,7 @@ st.set_page_config(page_title='ActionPilot · Customer support that takes action
 apply_styles()
 require_login()
 with st.sidebar:
-    st.caption(f'Signed in as {st.session_state["login_email"]}')
+    st.caption(f'Signed in as {st.session_state["user_email"]}')
     st.button('Sign out', on_click=logout, width='stretch')
 seed_demo()
 page = st.session_state.setdefault('page', 'Home')

@@ -1,6 +1,19 @@
 # Deployment and integration handoff
 
-## Observed deployment status
+## Account login deployment
+
+The login/sign-up implementation is on `codex/login-signup`. Deploy `app.py` from
+that branch (or a reviewed merge), using Python 3.12 and pinned requirements.
+Set `AUTH_DATABASE_URL` in Streamlit Cloud Secrets to a hosted PostgreSQL URL with
+TLS. The role must be able to create/read/write the account tables. See
+[README: Login and Sign Up](README.md#login-and-sign-up) for the exact secret and
+persistence smoke test. Missing storage configuration leaves the workspace locked.
+`AUTH_SQLITE_PATH` is local development only; Cloud disk is not durable account
+storage. SMTP `EMAIL_USER`/`EMAIL_PASS` are no longer used. Keep `OPENAI_API_KEY`.
+Account login does not change the synthetic customer selector or Admin permissions.
+No live deployment or provider provisioning is performed by this branch.
+
+## Historical deployment status
 
 The inspected main has an entry point `app.py`, pinned `requirements.txt`, and
 no hosting manifest, Streamlit config, deployment workflow, or recorded public

@@ -5,6 +5,10 @@ Python 3.11+, SQLite, OpenAI SDK, pytest. Dependencies are pinned in requirement
 
 - `app.py`: manual support and read-only demo admin; avoid edits unless essential
   and coordinate any such change with Magomed.
+- `actionpilot/auth.py`: Argon2id accounts; hosted PostgreSQL via AUTH_DATABASE_URL
+  in Streamlit secrets. AUTH_SQLITE_PATH is explicit local development only.
+- `actionpilot/login.py`: Login/Sign Up gate and session cleanup; user_email is
+  set only after password verification. No legacy passwordless bypass.
 - `actionpilot/db.py`, `seed.py`: short-lived connections, schema, synthetic seed.
 - `actionpilot/service.py`: customer-scoped queries and atomic confirmed writes.
 - `actionpilot/agent.py`: model read/proposal tools; application-owned confirmation.
@@ -28,5 +32,6 @@ Handle explicit foreign-customer/access questions with application-owned scope
 replies. Keep get_access_scope argument-free and never display raw model prose.
 
 The customer selector and public admin view are demo features, not production
-authentication/authorization. Same-day intraday cutoffs are not implemented.
+customer authorization. Registered accounts authenticate access to the demo,
+not ownership of real customer records or admin roles. Same-day intraday cutoffs are not implemented.
 Never commit keys, secrets, generated DBs or environments. Sanitize API errors.
