@@ -55,7 +55,8 @@ _CUSTOMER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5}
 _CUSTOMER_ORDINAL = re.compile(r'\b(first|second|third|fourth|fifth)\s+(?:demo\s+)?customer\b')
 _CUSTOMER_ORDINALS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5}
 _SCOPE_QUESTION = re.compile(
-    r'\b(?:access|permissions?|scope|authori[sz](?:ed|ation))\b|'
+    r'\b(?:permissions?|scope|authori[sz]ation)\b|'
+    r'\b(?:what|which|whose|explain|describe)\b[^.!?\n]*\baccess\b|'
     r'\bwhose\s+(?:orders?|data|payments?)\b|'
     r'\b(?:which|what)\s+customer\b|'
     r'\b(?:all|other|another|every|different)\s+(?:demo\s+)?customers?\b|'
@@ -241,6 +242,9 @@ class SupportAgent:
                 f'The selected demo customer is Demo Customer {self.customer_id}. '
                 'Only this customer\'s orders and payments are accessible in this assistant session. '
                 'For access questions or requests for other customers, use get_access_scope; '
+                'Mentions of the selected customer and requests to access their own orders '
+                'are normal support requests: use list_orders, get_order or get_payment_status, '
+                'not get_access_scope. '
                 'do not substitute the selected customer\'s orders for a different customer. '
                 'Use tools for all order, payment and slot facts. Customer context is supplied '
                 'by the application; never request or supply a customer ID. Never run SQL. '
@@ -296,7 +300,7 @@ class SupportAgent:
         # Identity comes from the application, including for unrecognized
         # phrasing. Never display untrusted model descriptions of ownership.
         if not any(o['tool'] == 'get_access_scope' and 'error' not in o['result'] for o in observations):
-            reply = _render_scope(self.customer_id) + '\n\n' + reply
+            reply = f'Selected customer: Demo Customer {self.customer_id}.\n\n' + reply
         self._remember_turn(messages, reply)
         return reply
 

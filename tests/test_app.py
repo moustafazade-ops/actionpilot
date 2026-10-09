@@ -385,3 +385,36 @@ def test_theme_switch_keeps_pending_confirmation(tmp_path, monkeypatch):
     assert app.session_state['support_chat']['agent'].pending.token == token
     assert any(b.label == 'Confirm delivery change' for b in app.button)
     assert client.chat.completions.create.call_count == 2
+
+
+def test_own_customer_chat_renders_order_results_without_scope_warning(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+    import json
+    from openai.types.chat import ChatCompletion
+    from actionpilot.service import admin_snapshot
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'own_orders.db'))
+    monkeypatch.setenv('OPENAI_API_KEY', 'synthetic-test-key')
+    def completion(tool=None):
+        message = {'role': 'assistant', 'content': None}
+        if tool:
+            message['tool_calls'] = [{'id': 'own_orders', 'type': 'function',
+                                     'function': {'name': tool, 'arguments': '{}'}}]
+        return ChatCompletion.model_validate({
+            'id': 'own', 'created': 0, 'model': 'mock', 'object': 'chat.completion',
+            'choices': [{'index': 0, 'finish_reason': 'tool_calls' if tool else 'stop', 'message': message}],
+        })
+    client = MagicMock()
+    client.chat.completions.create.side_effect = [completion('list_orders'), completion()]
+    monkeypatch.setattr('actionpilot.chat_ui.create_client', lambda key: client)
+    app = _app()
+    before = admin_snapshot()
+    app.chat_input[0].set_value("I'm Demo Customer 1. Show my orders").run()
+    assert not app.exception
+    reply = app.session_state['support_chat']['display'][-1]['content']
+    assert 'Demo Item 1' in reply and 'Demo Item 2' in reply
+    assert 'Demo Item 3' not in reply and 'In this assistant session' not in reply
+    assert client.chat.completions.create.call_count == 2
+    results = [json.loads(m['content']) for m in client.chat.completions.create.call_args.kwargs['messages'] if m['role'] == 'tool']
+    assert all(order['customer_id'] == 1 for order in results[0]['orders'])
+    assert app.session_state['logged_in'] is True
+    assert admin_snapshot() == before
