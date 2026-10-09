@@ -1,3 +1,12 @@
+Email login integration on feature/backend — 2026-10-09
+Command: /workspace/actionpilot/.venv/bin/python -m pytest -q
+Result: 215 passed in 4.13s
+Includes existing backend/service/AI scope checks and 13 mocked Gmail login tests.
+UI tests establish a verified session before exercising existing workspace flows.
+No backend service, agent, schema or AI tool changes; existing work preserved.
+No live SMTP email sent. Streamlit secrets EMAIL_USER and EMAIL_PASS required.
+Whitespace check: passed. This push does not confirm a live deployment update.
+
 ActionPilot backend verification — 2026-10-09 (Asia/Baku)
 
 Branch: feature/backend

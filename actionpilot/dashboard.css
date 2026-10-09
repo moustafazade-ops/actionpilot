@@ -16,7 +16,7 @@ h2 { letter-spacing: -.035em; }
 h3 { letter-spacing: -.025em; font-size: 1.3rem !important; }
 [data-testid="stCaptionContainer"] { color: var(--ap-muted); }
 [data-testid="stVerticalBlockBorderWrapper"] > div { border-color: var(--ap-border) !important; border-radius: var(--ap-radius) !important; }
-.st-key-ai_panel,.st-key-order_panel,.st-key-dashboard_orders,.st-key-home_preview {
+.st-key-ai_panel,.st-key-order_panel,.st-key-dashboard_orders,.st-key-home_preview,.st-key-login_panel {
   background: linear-gradient(145deg, #152036e6, #0f1829f5); border-radius: var(--ap-radius);
   box-shadow: 0 12px 40px #00000020;
 }
