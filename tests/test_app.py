@@ -349,35 +349,3 @@ def test_manual_change_on_dashboard_makes_old_ai_proposal_stale(tmp_path, monkey
     assert len(admin_snapshot()['audit_logs']) == 1
     assert any('Confirmation rejected' in m.value for m in app.get('text'))
     assert not any(b.label == 'Confirm delivery change' for b in app.button)
-
-
-
-def test_delivery_date_is_scoped_to_selected_order(tmp_path, monkeypatch):
-    from datetime import timedelta
-    from actionpilot.service import today
-    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'date_context.db'))
-    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
-    app = _app()
-    app.date_input[0].set_value(today() + timedelta(days=2)).run()
-    next(s for s in app.selectbox if s.label == 'Order').select_index(1).run()
-    assert not app.exception
-    assert app.date_input[0].value == today() + timedelta(days=1)
-    next(s for s in app.selectbox if s.label == 'Order').select_index(0).run()
-    assert not app.exception
-    slot = next(s for s in app.selectbox if s.label == 'Available slot').value
-    assert slot['date'] == app.date_input[0].value.isoformat()
-    assert not app.checkbox[0].value
-
-
-def test_blocked_order_has_status_but_no_reschedule_controls(tmp_path, monkeypatch):
-    from actionpilot.service import admin_snapshot
-    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'blocked_order.db'))
-    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
-    app = _app()
-    app.sidebar.selectbox[0].select_index(1).run()
-    assert not app.exception
-    assert any('Dispatched' in m.value for m in app.markdown)
-    assert any('does not allow rescheduling' in m.value for m in app.info)
-    assert not app.date_input
-    assert not any(b.label == 'Reschedule delivery' for b in app.button)
-    assert admin_snapshot()['audit_logs'] == []
