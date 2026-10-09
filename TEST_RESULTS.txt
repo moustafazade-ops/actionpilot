@@ -1,0 +1,18 @@
+Milestone 1 verification — 2026-10-09
+
+Command: .venv/bin/python -m pytest -q
+Result: 34 passed in 0.83s
+Runtime: Python 3.12.14; Streamlit 1.65.0; pytest 9.1.1
+Python 3.11 compatibility is intended; tests ran on Python 3.12.
+
+Additional checks:
+- python -m compileall -q actionpilot app.py tests: passed
+- python -m pip check: No broken requirements found.
+- git diff --check: passed
+- Seeded SQLite counts: 5 customers, 10 orders, 12 delivery slots.
+- Initial audit logs: 0; successful mutations create logs atomically.
+- Tests cover ownership, confirmation, status restrictions, invalid slots,
+  capacity release, concurrent bookings, audit failure rollback, schema integrity,
+  and Streamlit customer/admin confirmation flow.
+
+No LLM integration or real customer data is included.
