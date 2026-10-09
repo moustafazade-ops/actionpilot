@@ -21,6 +21,28 @@ stop the app, remove this generated database file, and restart. Initial seeding
 creates enabled, full, disabled, and zero-capacity slots for the next three days
 in Baku time. No database migration is needed from milestone 1.
 
+## Product workspace
+
+The app opens on **Home**, with a live, read-only preview of the selected synthetic
+customer's first order and tomorrow's delivery availability. **Launch AI Assistant**
+opens chat alongside the existing manual order controls; **Explore Dashboard** opens
+owned order cards, actual order counts and delivery planning. Both calls to action
+use the same Streamlit application.
+
+The sidebar connects **Home**, **AI Assistant**, **Dashboard** and **Admin**.
+Customer selection carries across pages. Changing customers clears the previous
+chat and pending proposal, including when switching from Home or Admin. Navigating
+between pages for the same customer preserves chat and proposals; the service still
+rejects a stale proposal if an order changes before confirmation. Admin remains
+read only and shows all synthetic demo records with committed reschedule audit logs.
+
+The shared dark design uses local CSS and native Streamlit widgets, with no external
+fonts, frontend framework or extra runtime dependencies. On mobile, panels stack
+with the assistant first and navigation available through Streamlit's sidebar.
+Amounts remain labeled in cents because the database does not specify a currency.
+
+Captured desktop/mobile views are in [docs/screenshots](docs/screenshots/README.md).
+
 ## Enable real AI chat
 
 Set `OPENAI_API_KEY` in the process environment, or in the gitignored
@@ -51,7 +73,8 @@ If the key is missing, chat is disabled and manual support remains available.
 
 ## Demo
 
-1. Select **Demo Customer 1**. This establishes the demo session's customer context.
+1. Select **Demo Customer 1** in the Home preview, then **Launch AI Assistant**.
+   The sidebar also lets you choose the demo session's customer context.
 2. In chat, try “Show my orders”, then “Is order 1 paid?”
 3. Try “What delivery slots are available tomorrow?”
 4. Try “Move order 1 to tomorrow's morning delivery slot”.
@@ -148,6 +171,9 @@ app.py                     Streamlit manual/customer/admin interface
    service.py              ownership checks and transactional actions
    agent.py                OpenAI tool loop, validation and confirmation state
    chat_ui.py              chat interface and server-side customer binding
+   views.py                Home, assistant, dashboard and admin page views
+   ui.py                   reusable cards, badges, icons and navigation helpers
+   dashboard.css           shared responsive dark design system
  tests/
    test_service.py         existing operation and concurrency tests
    test_agent.py           mocked AI and SDK transport tests
@@ -155,6 +181,8 @@ app.py                     Streamlit manual/customer/admin interface
  requirements.txt          Streamlit, pytest, official OpenAI SDK
  pytest.ini                test discovery/import configuration
  .env.example              safe configuration template
+ .streamlit/config.toml     native Streamlit dark theme
+ docs/screenshots/          actual UI captures, including a labeled mocked AI test
  TEST_RESULTS.txt          actual verification results
  .gitignore                excludes data, environments and secrets
 ```
