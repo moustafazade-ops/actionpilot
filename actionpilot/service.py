@@ -56,18 +56,22 @@ def get_available_slots(date):
         return [dict(row) for row in rows if row['enabled'] and row['remaining_capacity'] > 0]
 
 
-def reschedule_order(customer_id, order_id, slot_id, confirmed):
+def reschedule_order(customer_id, order_id, slot_id, confirmed, *, expected_order=None, expected_slot=None):
     if confirmed is not True:
         raise ActionError('Explicit confirmation is required.')
     with connect() as conn:
         # Serialize writers before checking capacity, including across app sessions.
         conn.execute('BEGIN IMMEDIATE')
         order = _order(conn, customer_id, order_id)
+        if expected_order is not None and any(order[key] != expected_order[key] for key in ('status', 'slot_id')):
+            raise ActionError('Order changed since the proposal. Prepare a new proposal.')
         if order['status'] not in ('pending', 'scheduled'):
             raise ActionError('Only pending or scheduled orders can be rescheduled.')
         slot = conn.execute(SLOT_QUERY + ' WHERE s.id = ?', (slot_id,)).fetchone()
         if slot is None:
             raise ActionError('Delivery slot not found.')
+        if expected_slot is not None and any(slot[key] != expected_slot[key] for key in ('date', 'start_time', 'end_time')):
+            raise ActionError('Delivery slot changed since the proposal. Prepare a new proposal.')
         if not slot['enabled'] or Date.fromisoformat(slot['date']) < today():
             raise ActionError('Delivery slot is unavailable.')
         if order['slot_id'] == slot_id:
