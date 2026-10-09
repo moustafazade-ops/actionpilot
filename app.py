@@ -1,8 +1,9 @@
-"""Minimal synthetic customer support demo. No authentication or LLM calls."""
+"""Synthetic support demo with manual operations and OpenAI tool-based chat."""
 import sqlite3
 from datetime import timedelta
 import streamlit as st
 from actionpilot.seed import seed_demo
+from actionpilot.chat_ui import render_chat
 from actionpilot.service import (
     ActionError, admin_snapshot, get_available_slots, get_order,
     get_payment_status, list_customers, list_orders, reschedule_order, today,
@@ -11,7 +12,7 @@ from actionpilot.service import (
 st.set_page_config(page_title='ActionPilot', page_icon='📦')
 seed_demo()
 st.title('ActionPilot')
-st.caption('Milestone 1 • synthetic demo data • customer selector is not authentication')
+st.caption('Milestone 2 • synthetic demo data • customer selector is not production authentication')
 customer_tab, admin_tab = st.tabs(['Customer support', 'Admin view'])
 with customer_tab:
     customers = list_customers()
@@ -43,8 +44,9 @@ with customer_tab:
                 st.info('No alternative slots available on this date.')
         else:
             st.info('This order status does not allow rescheduling.')
+    render_chat(customer['id'])
 with admin_tab:
-    st.caption('Read-only demo admin view; no authentication in milestone 1.')
+    st.caption('Read-only demo admin view; no production authentication.')
     for name, rows in admin_snapshot().items():
         st.subheader(name.replace('_', ' ').title())
         st.dataframe(rows, width='stretch')

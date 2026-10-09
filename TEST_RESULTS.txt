@@ -1,18 +1,38 @@
-Milestone 1 verification — 2026-10-09
+ActionPilot verification — 2026-10-09
 
+Milestone 2 full suite (includes all Milestone 1 tests)
 Command: .venv/bin/python -m pytest -q
-Result: 34 passed in 0.83s
-Runtime: Python 3.12.14; Streamlit 1.65.0; pytest 9.1.1
-Python 3.11 compatibility is intended; tests ran on Python 3.12.
+Result: 88 passed in 2.62s
+Runtime: Python 3.12.14; Streamlit 1.65.0; pytest 9.1.1; OpenAI SDK 2.54.0
+Python 3.11 compatibility is intended; this environment tested Python 3.12.
 
 Additional checks:
 - python -m compileall -q actionpilot app.py tests: passed
 - python -m pip check: No broken requirements found.
 - git diff --check: passed
-- Seeded SQLite counts: 5 customers, 10 orders, 12 delivery slots.
-- Initial audit logs: 0; successful mutations create logs atomically.
-- Tests cover ownership, confirmation, status restrictions, invalid slots,
-  capacity release, concurrent bookings, audit failure rollback, schema integrity,
-  and Streamlit customer/admin confirmation flow.
 
-No LLM integration or real customer data is included.
+Milestone 2 coverage:
+- Mocked typed AI tool responses for order/payment reads and slot discovery.
+- Official OpenAI SDK request serialization and response parsing with a mocked
+  HTTP transport (no network calls).
+- Trusted customer context, foreign-order rejection and forbidden customer IDs.
+- Invalid JSON/types, unknown tools, SQL attempts, forged confirmation arguments.
+- Available/unavailable proposals; no database writes during model tool execution.
+- One-use confirmation, repeated confirmation, wrong tokens, cancellation,
+  typed confirmation, proposal replacement and stale token rejection.
+- Execution-time ownership/status/capacity/date-window validation, rollback
+  if audit insertion fails, and failed-token consumption.
+- Missing keys, configured models, connection/authentication/rate-limit failures,
+  invalid responses, input/loop limits and bounded conversation history.
+- Streamlit manual feature preservation, chat confirmation/cancellation,
+  missing-key display, execution rejection, secret precedence, and customer
+  context switching with transcript/proposal isolation.
+
+Live OpenAI validation:
+Not performed: no OPENAI_API_KEY is configured in this environment. Tests mock
+AI responses and HTTP transport. Live chat requires a valid API key, model access,
+and network access to api.openai.com. No API success is claimed by these tests.
+
+Previous Milestone 1 verification:
+34 passed in 0.83s; synthetic database initialized with 5 customers, 10 orders,
+12 delivery slots and 0 initial audit logs.
