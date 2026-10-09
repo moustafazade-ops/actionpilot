@@ -93,7 +93,7 @@ def test_chat_cancel_button_never_writes(tmp_path, monkeypatch):
 def test_customer_switch_discards_transcript_and_pending(tmp_path, monkeypatch):
     from actionpilot.service import get_order
     app, _ = _mock_chat(monkeypatch, tmp_path)
-    app.selectbox[0].select_index(1).run()
+    app.sidebar.selectbox[0].select_index(1).run()
     assert not app.exception
     state = app.session_state['support_chat']
     assert state['customer_id'] == 2
@@ -124,3 +124,70 @@ def test_streamlit_secret_and_environment_precedence(monkeypatch):
     assert ui._api_key() == 'secret-key'
     monkeypatch.setenv('OPENAI_API_KEY', 'environment-key')
     assert ui._api_key() == 'environment-key'
+
+
+def test_order_card_replaces_json_and_refreshes_after_save(tmp_path, monkeypatch):
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'cards.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    assert not app.get('json')
+    card = next(m.value for m in app.markdown if 'aria-label="Order summary"' in m.value)
+    assert 'Demo Item 1' in card and 'Delivery · Pending' in card
+    assert 'Paid' in card and 'Not assigned' in card and '1,250 cents' in card
+    assert 'Synthetic demo' in card
+    assert not app.success
+    app.checkbox[0].check()
+    next(b for b in app.button if b.label == 'Reschedule delivery').click().run()
+    assert not app.exception
+    card = next(m.value for m in app.markdown if 'aria-label="Order summary"' in m.value)
+    assert 'Delivery · Scheduled' in card and 'Slot #1' in card
+    assert 'Database confirmed' in app.success[0].value
+    assert next(m.value for m in app.metric if m.label == 'Confirmed changes') == '1'
+    assert not app.get('json')
+
+
+def test_proposal_card_is_review_only_until_confirmed(tmp_path, monkeypatch):
+    from actionpilot.service import admin_snapshot
+    app, _ = _mock_chat(monkeypatch, tmp_path)
+    proposal = app.session_state['support_chat']['agent'].pending
+    card = next(m.value for m in app.markdown if 'aria-label="Proposed delivery change"' in m.value)
+    assert 'Awaiting confirmation' in card and 'Order #1' in card
+    assert proposal.slot['date'] in card
+    assert f"{proposal.slot['start_time']}–{proposal.slot['end_time']}" in card
+    assert 'Baku' in card
+    assert not app.success
+    assert admin_snapshot()['audit_logs'] == []
+    next(b for b in app.button if b.label == 'Confirm delivery change').click().run()
+    assert not app.exception
+    assert any('saved to the database' in m.value for m in app.success)
+    order_card = next(m.value for m in app.markdown if 'aria-label="Order summary"' in m.value)
+    assert 'Slot #5' in order_card and 'Delivery · Scheduled' in order_card
+
+
+def test_card_escapes_customer_order_content(tmp_path, monkeypatch):
+    from actionpilot.db import connect
+    from actionpilot.seed import seed_demo
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'escaped.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    seed_demo()
+    with connect() as conn:
+        conn.execute('UPDATE orders SET item = ? WHERE id = 1', ('<script>alert("test")</script>',))
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    card = next(m.value for m in app.markdown if 'aria-label="Order summary"' in m.value)
+    assert '<script>' not in card
+    assert '&lt;script&gt;' in card
+
+
+def test_empty_order_list_keeps_chat_and_admin_usable(tmp_path, monkeypatch):
+    monkeypatch.setenv('ACTIONPILOT_DB_PATH', str(tmp_path / 'empty.db'))
+    monkeypatch.setattr('actionpilot.chat_ui._api_key', lambda: '')
+    monkeypatch.setattr('actionpilot.service.list_orders', lambda customer_id: [])
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run()
+    assert not app.exception
+    assert any('no orders yet' in m.value for m in app.info)
+    assert len(app.chat_input) == 1
+    assert len(app.dataframe) == 3
+    assert not app.checkbox
+    assert not app.success
