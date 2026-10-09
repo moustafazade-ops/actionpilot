@@ -142,3 +142,73 @@ def test_invalid_hosted_config_never_falls_back_to_sqlite(monkeypatch, tmp_path)
     with pytest.raises(AuthError, match='TLS'):
         login.account_store()
     assert not path.exists()
+
+
+def test_remember_me_restores_new_session_and_logout_revokes(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    _signup(app)
+    app.checkbox(key='signin_remember').check()
+    _login(app)
+    token = app.session_state['remember_token']
+    monkeypatch.setattr('actionpilot.login._remember_cookie', lambda: token)
+    restored = _app(tmp_path, monkeypatch)
+    assert not restored.exception
+    assert restored.session_state['logged_in'] is True
+    assert restored.session_state['user_email'] == 'person@gmail.com'
+    assert not restored.text_input  # no password form on restored login
+    next(b for b in restored.button if b.label == 'Sign out').click().run()
+    assert not restored.exception
+    assert 'logged_in' not in restored.session_state
+    assert AccountStore(sqlite_path=tmp_path / 'accounts.db').restore_remember_session(token) is None
+    other = _app(tmp_path, monkeypatch)
+    assert 'logged_in' not in other.session_state
+    assert [t.label for t in other.tabs] == ['Login', 'Sign Up']
+
+
+def test_unchecked_remember_me_creates_no_persistent_session(tmp_path, monkeypatch):
+    import sqlite3
+    app = _app(tmp_path, monkeypatch)
+    _signup(app)
+    _login(app)
+    assert 'remember_token' not in app.session_state
+    with sqlite3.connect(tmp_path / 'accounts.db') as conn:
+        assert conn.execute('SELECT count(*) FROM auth_remember_sessions').fetchone()[0] == 0
+
+
+def test_failed_login_with_remember_me_does_not_create_token(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    _signup(app)
+    app.checkbox(key='signin_remember').check()
+    _login(app, password='incorrect')
+    assert 'remember_token' not in app.session_state
+    assert 'logged_in' not in app.session_state
+
+
+def test_logo_replaces_text_brand_marks(tmp_path, monkeypatch):
+    app = _app(tmp_path, monkeypatch)
+    assert any('alt="ActionPilot logo"' in m.value for m in app.markdown)
+    _signup(app)
+    _login(app)
+    marks = [m.value for m in app.markdown if 'class="ap-brand"' in m.value]
+    assert len(marks) == 3
+    assert all('alt="ActionPilot logo"' in mark and '>AP</span>' not in mark for mark in marks)
+
+
+def test_remembered_logout_can_retry_failed_revocation(tmp_path, monkeypatch):
+    from actionpilot.auth import AuthError
+    app = _app(tmp_path, monkeypatch)
+    _signup(app)
+    app.checkbox(key='signin_remember').check()
+    _login(app)
+    token = app.session_state['remember_token']
+    with monkeypatch.context() as patch:
+        def unavailable(self, token):
+            raise AuthError('Account storage is temporarily unavailable. Please try again later.')
+        patch.setattr(AccountStore, 'revoke_remember_session', unavailable)
+        next(b for b in app.button if b.label == 'Sign out').click().run()
+        assert not app.exception
+        assert app.session_state['logged_in'] is True
+        assert any('Could not revoke saved sign-in' in m.value for m in app.error)
+    next(b for b in app.button if b.label == 'Sign out').click().run()
+    assert 'logged_in' not in app.session_state
+    assert AccountStore(sqlite_path=tmp_path / 'accounts.db').restore_remember_session(token) is None

@@ -124,3 +124,47 @@ def test_no_implicit_ephemeral_storage():
 def test_postgres_refuses_insecure_transport():
     with pytest.raises(AuthError, match='TLS'):
         AccountStore(database_url='postgresql://user:secret@host/db?sslmode=disable')
+
+
+def test_remember_token_is_hashed_restores_and_revokes(store):
+    from hashlib import sha256
+    store.sign_up('person@example.com', PASSWORD, PASSWORD)
+    token = store.create_remember_session(store.login('person@example.com', PASSWORD))
+    with sqlite3.connect(store.sqlite_path) as conn:
+        digest = conn.execute('SELECT token_hash FROM auth_remember_sessions').fetchone()[0]
+    assert digest == sha256(token.encode()).hexdigest() and digest != token
+    reopened = AccountStore(sqlite_path=store.sqlite_path)
+    assert reopened.restore_remember_session(token) == 'person@example.com'
+    assert reopened.restore_remember_session('0' * 64) is None
+    reopened.revoke_remember_session(token)
+    assert store.restore_remember_session(token) is None
+
+
+def test_remember_session_expires_at_30_days(store, monkeypatch):
+    from actionpilot.auth import REMEMBER_SECONDS
+    monkeypatch.setattr('actionpilot.auth.time.time', lambda: 1000)
+    store.sign_up('person@example.com', PASSWORD, PASSWORD)
+    token = store.create_remember_session('person@example.com')
+    monkeypatch.setattr('actionpilot.auth.time.time', lambda: 1000 + REMEMBER_SECONDS - 1)
+    assert store.restore_remember_session(token) == 'person@example.com'
+    monkeypatch.setattr('actionpilot.auth.time.time', lambda: 1000 + REMEMBER_SECONDS)
+    assert store.restore_remember_session(token) is None
+
+
+def test_remember_session_rejects_changed_password_and_deleted_account(store):
+    store.sign_up('person@example.com', PASSWORD, PASSWORD)
+    token = store.create_remember_session('person@example.com')
+    with sqlite3.connect(store.sqlite_path) as conn:
+        conn.execute('UPDATE auth_users SET password_hash = ?', ('changed hash',))
+    assert store.restore_remember_session(token) is None
+    token = store.create_remember_session('person@example.com')
+    with sqlite3.connect(store.sqlite_path) as conn:
+        conn.execute('DELETE FROM auth_users')
+    assert store.restore_remember_session(token) is None
+
+
+@pytest.mark.parametrize('token', [None, '', 'not-a-token', '<script>', 'a' * 65, 'A' * 64])
+def test_invalid_remember_cookie_never_opens_storage(store, token):
+    assert store.restore_remember_session(token) is None
+    store.revoke_remember_session(token)
+    assert not store.sqlite_path.exists()

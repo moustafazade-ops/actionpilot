@@ -14,6 +14,11 @@ Python 3.11+, SQLite, OpenAI SDK, pytest. Dependencies are pinned in requirement
   Preserve native widget semantics and reduced-motion support when styling.
   Light cyan/green is the default. Settings stores the session's light/dark choice
   in `theme_mode`; keep account identity separate from synthetic customer context.
+- `login.py`, `auth.py`: optional 30-day remembered login uses a random browser
+  cookie and a database token digest. Revoke on sign-out; never persist passwords.
+  Cookie writes use HTTPS Secure/SameSite=Strict (localhost allowed); Streamlit
+  writes it in JavaScript, so it is not HttpOnly. Brand marks use the supplied
+  transparent `assets/ap_green.png` through `ui.brand()`.
 
 Setup: `python3 -m venv .venv`, then
 `.venv/bin/python -m pip install -r requirements.txt`.

@@ -4,11 +4,11 @@ import streamlit as st
 from actionpilot.login import require_login
 from actionpilot.seed import seed_demo
 from actionpilot.service import list_customers
-from actionpilot.ui import apply_styles, badge, navigate, render_account_panel, select_customer
+from actionpilot.ui import LOGO_PATH, apply_styles, badge, brand, navigate, render_account_panel, select_customer
 from actionpilot.views import render_admin, render_assistant, render_dashboard, render_home, render_settings
 
 PAGES = {'Home': 'home', 'AI Assistant': 'auto_awesome', 'Dashboard': 'space_dashboard', 'Admin': 'admin_panel_settings', 'Settings': 'settings'}
-st.set_page_config(page_title='ActionPilot · Customer support that takes action', page_icon='✦', layout='wide')
+st.set_page_config(page_title='ActionPilot · Customer support that takes action', page_icon=str(LOGO_PATH), layout='wide')
 apply_styles()
 require_login()
 seed_demo()
@@ -17,7 +17,7 @@ if page not in PAGES:
     page = st.session_state['page'] = 'Home'
 customers = list_customers()
 with st.sidebar:
-    st.markdown('<div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>', unsafe_allow_html=True)
+    st.markdown(brand(), unsafe_allow_html=True)
     st.caption('Customer support that takes action')
     st.divider()
     for name, symbol in PAGES.items():
