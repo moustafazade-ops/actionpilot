@@ -1,3 +1,90 @@
+ActionPilot backend verification — 2026-10-09 (Asia/Baku)
+
+Branch: feature/backend
+Base: origin/main at 4dd5a1cd2795cac23fc88e0fe40fed6d8518e2d4
+Runtime: Python 3.12.0; Streamlit 1.65.0; pytest 9.1.1; OpenAI SDK 2.54.0
+Python 3.11+ is intended; only Python 3.12.0 was tested in this run.
+
+FINAL FULL SUITE
+Command: .venv/bin/python -m pytest -q
+Result: 153 passed in 2.50s; 0 failed; 0 skipped.
+Includes all original 93 tests plus 60 additional parameterized cases.
+
+UNCHANGED MAIN BASELINE
+Exported origin/main with git archive into /tmp/actionpilot-backend-baseline.
+Command (from that directory):
+/Users/aminmammadov/giti/actionpilot/.venv/bin/python -m pytest -q
+Result after warmed imports: 93 passed in 1.91s; 0 failed; 0 skipped.
+
+Initial diagnostic runs (before corrections):
+- Backend: 2 failed, 151 passed in 19.29s. One new end-time test used the
+  existing seeded value rather than a changed value; corrected to 13:00.
+  The existing initial AppTest also timed out at its default 3 seconds.
+- Unchanged main baseline: 1 failed, 92 passed in 19.12s, with the same
+  initial AppTest timeout. Both processes ran concurrently with cold imports.
+- Backend AppTest constructors now allow 10 seconds for startup; assertions
+  are preserved. Final backend and baseline runs passed as recorded above.
+
+Additional checks:
+.venv/bin/python -m compileall -q actionpilot app.py tests: passed.
+.venv/bin/python -m pip check: No broken requirements found.
+git diff --check: passed.
+git diff --exit-code origin/main -- app.py actionpilot/chat_ui.py
+  actionpilot/db.py requirements.txt: passed (those files unchanged).
+Gitignore verification: .venv, .env, .streamlit/secrets.toml and generated
+  data/actionpilot.db are ignored. Changes contain only synthetic test keys.
+
+Added coverage:
+- Direct service IDs reject bools, floats, strings, injection text, null,
+  non-positive values and signed 64-bit overflow without database changes.
+- Customer-scoped listing across all five demo customers.
+- Malformed stored slot dates roll back safely.
+- Duplicate JSON tool arguments and invalid trusted customer contexts.
+- Explicit malformed/blank API keys fail with a sanitized configuration error.
+- Both cancellation paths preserve complete order/slot/audit snapshots.
+- API timeout and server failures, sanitized database read failure, excessive
+  tool batches, changed slot end/date and calendar rollover at confirmation.
+
+Limitations:
+No live OpenAI calls or browser visual QA were performed. SDK requests and
+responses are mocked. Streamlit flows are verified through AppTest.
+Customer selector/public admin are demo features, not real authentication.
+Service scoping cannot prevent users selecting another demo customer in the UI.
+Manual form does not protect reviewed-window freshness; coordinate that
+frontend follow-up with Magomed. Intraday cutoffs and distributed load are
+not tested. See BACKEND_TESTING.md for reproduction and full scope.
+
+Prior main verification (historical): 93 passed in 2.61s on Python 3.12.14;
+prior Milestone 1: 34 passed in 0.83s. These are not this branch's results.
+
+Customer scope regression fix — 2026-10-09, fix_from_main
+Baseline: 103 passed in 4.62s.
+New scope tests before implementation: 28 failed as expected (foreign requests
+retrieved selected-customer orders; access explanations and scope tool absent).
+Extended wording check: 5 failed, 20 passed; classifiers then corrected.
+An initial full run failed the new UI test because it selected the Order widget
+instead of Customer; fixed the test selector to use the Customer label.
+Final full suite: .venv/bin/python -m pytest -q
+Result: 142 passed in 5.65s, 0 failed, 0 skipped.
+compileall, pip check and git diff --check passed.
+Both live prompts are tested in sequence in the agent and Streamlit; all model
+responses remain mocked. No live API call or browser visual QA was performed.
+Code review reproduced the manual reviewed-window race in an isolated database:
+reviewed=09:00, committed=08:00. See BACKEND_REVIEW.md for the remaining finding.
+
+Final feature/backend integration — 2026-10-09
+Preserved prior backend validation and all regression coverage, and integrated
+fix_from_main with the existing main frontend. No main branch update or force push.
+Resolved test/report conflicts by retaining both suites and the backend's
+10-second Streamlit startup timeout in the current frontend test helper.
+Command: .venv/bin/python -m pytest -q
+Result: 202 passed in 5.24s, 0 failed, 0 skipped.
+compileall, pip check and git diff --check passed.
+No frontend implementation differences from origin/main; only UI tests changed.
+OpenAI completions and SDK transport remain mocked. No live API call performed.
+
+
+Historical login-branch report from 0dee9e1 (before this integration):
 Email verification login — 2026-10-09
 Command: .venv/bin/python -m pytest -q
 Result: 116 passed in 4.19s
@@ -11,48 +98,3 @@ session to exercise the workspace. No backend service/schema/tool changes.
 Startup: Streamlit server started on 127.0.0.1:8504; health endpoint returned ok.
 Dependency check: no broken requirements found. Whitespace check: passed.
 Live deployment: not updated; Streamlit Cloud access/secrets required.
-
-ActionPilot verification — 2026-10-09
-
-Merged main / Milestone 2 full suite (includes all Milestone 1 tests)
-Command: .venv/bin/python -m pytest -q
-Result: 93 passed in 2.61s
-Runtime: Python 3.12.14; Streamlit 1.65.0; pytest 9.1.1; OpenAI SDK 2.54.0
-Python 3.11 compatibility is intended; this environment tested Python 3.12.
-
-Additional checks:
-- python -m compileall -q actionpilot app.py tests: passed
-- python -m pip check: No broken requirements found.
-- git diff --check: passed
-
-Merge validation:
-- GitHub main already contained Milestone 2 via PR #2; no conflicts existed.
-- Fixed an OverflowError caused by tool order IDs exceeding SQLite signed 64-bit range.
-- Added rejection of oversized/deeply nested tool arguments and regression coverage.
-- Valid maximum SQLite ID is handled as a missing order without a crash.
-
-Milestone 2 coverage:
-- Mocked typed AI tool responses for order/payment reads and slot discovery.
-- Official OpenAI SDK request serialization and response parsing with a mocked
-  HTTP transport (no network calls).
-- Trusted customer context, foreign-order rejection and forbidden customer IDs.
-- Invalid JSON/types, unknown tools, SQL attempts, forged confirmation arguments.
-- Available/unavailable proposals; no database writes during model tool execution.
-- One-use confirmation, repeated confirmation, wrong tokens, cancellation,
-  typed confirmation, proposal replacement and stale token rejection.
-- Execution-time ownership/status/capacity/date-window validation, rollback
-  if audit insertion fails, and failed-token consumption.
-- Missing keys, configured models, connection/authentication/rate-limit failures,
-  invalid responses, input/loop limits and bounded conversation history.
-- Streamlit manual feature preservation, chat confirmation/cancellation,
-  missing-key display, execution rejection, secret precedence, and customer
-  context switching with transcript/proposal isolation.
-
-Live OpenAI validation:
-Not performed: no OPENAI_API_KEY is configured in this environment. Tests mock
-AI responses and HTTP transport. Live chat requires a valid API key, model access,
-and network access to api.openai.com. No API success is claimed by these tests.
-
-Previous Milestone 1 verification:
-34 passed in 0.83s; synthetic database initialized with 5 customers, 10 orders,
-12 delivery slots and 0 initial audit logs.

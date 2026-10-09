@@ -19,7 +19,7 @@ from actionpilot.ui import (
 def render_order_workspace(customer):
     st.subheader('Order workspace')
     orders = list_orders(customer['id'])
-    selected = st.selectbox('Order', orders, format_func=lambda o: f"#{o['id']} — {o['item']}",
+    selected = st.selectbox('Order', orders, format_func=lambda o: f"#{o['id']} · {o['item']}",
                             key=f"order_{customer['id']}")
     if selected:
         order = get_order(customer['id'], selected['id'])
@@ -34,12 +34,12 @@ def render_order_workspace(customer):
             slots = [s for s in get_available_slots(day.isoformat()) if s['id'] != order['slot_id']]
             if slots:
                 slot = st.selectbox('Available slot', slots,
-                                    format_func=lambda s: f"{s['start_time']}–{s['end_time']} · {s['remaining_capacity']} places left",
+                                    format_func=lambda s: f"{s['start_time']}-{s['end_time']} · {s['remaining_capacity']} places left",
                                     key=f"delivery_slot_{customer['id']}_{order['id']}_{day.isoformat()}")
                 context = f"{customer['id']}_{order['id']}_{slot['id']}_{order['slot_id']}"
                 with st.form(f'reschedule_{context}'):
                     st.caption('Review the date and window. A change is saved only after you confirm and submit.')
-                    confirmed = st.checkbox(f"Confirm moving order #{order['id']} to {slot['date']} {slot['start_time']}–{slot['end_time']}")
+                    confirmed = st.checkbox(f"Confirm moving order #{order['id']} to {slot['date']} {slot['start_time']}-{slot['end_time']}")
                     submitted = st.form_submit_button('Reschedule delivery', type='primary', width='stretch')
                 if submitted:
                     try:
@@ -62,84 +62,107 @@ def render_order_workspace(customer):
 
 def render_home(customers):
     with st.container(key='home_topnav'):
-        brand, assistant, dashboard, admin = st.columns([3.4, 1.3, 1.2, .9], gap='small')
+        brand, assistant, dashboard, admin = st.columns([4.8, 1.25, 1.15, .85], gap='small')
         brand.markdown('<div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>', unsafe_allow_html=True)
         assistant.button('AI Assistant', key='top_assistant', on_click=navigate, args=('AI Assistant',), width='stretch')
         dashboard.button('Dashboard', key='top_dashboard', on_click=navigate, args=('Dashboard',), width='stretch')
         admin.button('Admin', key='top_admin', on_click=navigate, args=('Admin',), width='stretch')
-    hero, preview = st.columns([1.15, 1], gap='large')
-    with hero:
-        st.markdown(
-            '<div class="ap-hero"><p class="ap-eyebrow">Beyond the ordinary chatbot</p>'
-            '<h1>Customer Support That <span class="ap-gradient-text">Takes Action.</span></h1>'
-            '<p>An AI assistant that doesn\'t just answer questions — it helps customers complete real service tasks.</p></div>',
-            unsafe_allow_html=True,
-        )
-        launch, explore = st.columns(2, gap='small')
-        launch.button('Launch AI Assistant', key='launch_assistant', type='primary', on_click=navigate,
-                      args=('AI Assistant',), icon=':material/auto_awesome:', width='stretch')
-        explore.button('Explore Dashboard', key='explore_dashboard', on_click=navigate,
-                       args=('Dashboard',), icon=':material/space_dashboard:', width='stretch')
-        st.markdown('<p class="ap-trust">Order-aware answers &nbsp;·&nbsp; Customer-scoped access &nbsp;·&nbsp; You approve the change</p>',
-                    unsafe_allow_html=True)
-        st.markdown(badge('pending', 'Hackathon demo · Synthetic data'), unsafe_allow_html=True)
-    with preview, st.container(border=True, key='home_preview'):
-        st.markdown('<p class="ap-eyebrow">Live product preview</p>', unsafe_allow_html=True)
-        st.subheader('Your next step, grounded in data.')
-        customer = select_customer(customers)
-        if customer:
-            orders = list_orders(customer['id'])
-            if orders:
-                order = get_order(customer['id'], orders[0]['id'])
-                render_order_card(order, get_payment_status(customer['id'], order['id']))
+    with st.container(key='home_hero'):
+        hero, preview = st.columns([1.25, 1], gap='large')
+        with hero:
+            st.markdown(
+                '<div class="ap-hero"><p class="ap-eyebrow">Beyond the ordinary chatbot</p>'
+                '<h1>Customer Support That <span class="ap-action-text">Takes Action.</span></h1>'
+                '<p class="ap-hero-description">An AI assistant that turns service questions into real tasks, with you in control.</p></div>',
+                unsafe_allow_html=True,
+            )
+            with st.container(key='home_actions'):
+                launch, explore = st.columns([1.1, 1], gap='small')
+                launch.button('Launch AI Assistant', key='launch_assistant', type='primary', on_click=navigate,
+                              args=('AI Assistant',), icon=':material/auto_awesome:', width='stretch')
+                explore.button('Explore Dashboard', key='explore_dashboard', on_click=navigate,
+                               args=('Dashboard',), icon=':material/space_dashboard:', width='stretch')
+            st.markdown('<div class="ap-control-note">' + icon('shield')
+                        + '<span>Every change stays yours to approve.</span></div>', unsafe_allow_html=True)
+        with preview, st.container(border=True, key='home_preview'):
+            st.markdown('<div class="ap-preview-head"><span class="ap-preview-icon">' + icon('dashboard')
+                        + '</span><div><h3>Your customer workspace</h3><p>Current records. Clear next steps.</p></div>'
+                        + '<span class="ap-demo-label">DEMO</span></div>', unsafe_allow_html=True)
+            customer = select_customer(customers)
+            if customer:
+                orders = list_orders(customer['id'])
+                if orders:
+                    order = get_order(customer['id'], orders[0]['id'])
+                    render_order_card(order, get_payment_status(customer['id'], order['id']))
+                else:
+                    st.info('This customer has no orders yet.')
+                day = today() + timedelta(days=1)
+                slots = get_available_slots(day.isoformat())
+                if slots:
+                    slot = slots[0]
+                    st.markdown('<div class="ap-slot"><span class="ap-slot-icon">' + icon('calendar')
+                                + '</span><div><span class="ap-label">Available tomorrow · Baku</span>'
+                                + '<strong>' + escape(slot['start_time']) + '-' + escape(slot['end_time'])
+                                + '</strong><span class="ap-slot-date">' + escape(slot['date']) + '</span></div>'
+                                + badge('scheduled', f"{slot['remaining_capacity']} places left")
+                                + '</div>', unsafe_allow_html=True)
+                else:
+                    st.info('No delivery slots available tomorrow. Explore the dashboard to choose another date.')
+                st.button('Manage this customer’s orders', key='preview_dashboard', on_click=navigate,
+                          args=('Dashboard',), icon=':material/arrow_forward:', width='stretch')
             else:
-                st.info('This customer has no orders yet.')
-            day = today() + timedelta(days=1)
-            slots = get_available_slots(day.isoformat())
-            if slots:
-                slot = slots[0]
-                st.markdown('<div class="ap-card"><div class="ap-card-head"><span class="ap-eyebrow">Available tomorrow</span>'
-                            + badge('scheduled', f"{slot['remaining_capacity']} places left") + '</div><div class="ap-fields">'
-                            + field('Delivery date · Baku', slot['date'])
-                            + field('Delivery window', f"{slot['start_time']}–{slot['end_time']}")
-                            + '</div></div>', unsafe_allow_html=True)
-            else:
-                st.info('No delivery slots available tomorrow. Explore the dashboard to choose another date.')
-            st.button('Manage this customer’s orders', key='preview_dashboard', on_click=navigate,
-                      args=('Dashboard',), icon=':material/arrow_forward:', width='stretch')
-        else:
-            st.info('No demo customers are available.')
-        st.caption('Current demo records. No changes are made by this preview.')
-    section_heading('Built to be useful', 'Answers are just the beginning.',
-                    'From a service question to a reviewed action, in one workspace.')
-    cards = st.columns(3, gap='medium')
-    for column, name, title, description in zip(cards, ['spark', 'bolt', 'shield'],
-            ['Intelligent Answers', 'Real Actions', 'Secure Confirmations'],
-            ['Find order details, payment status and delivery availability using customer-scoped records.',
-             'Prepare a delivery reschedule using real slots and the existing transactional service.',
-             'Review the exact order, date and window. Nothing is saved until you explicitly confirm.']):
-        with column:
-            feature_card(name, title, description)
-    section_heading('How it works', 'A conversation. A clear next step.',
+                st.info('No demo customers are available.')
+            st.caption('Synthetic demo data. Previewing does not change an order.')
+    section_heading('', 'Answers are just the beginning.',
+                    'Order context, useful actions and your approval. Together in one workspace.')
+    context_visual = (
+        '<div class="ap-context-map" aria-label="Orders, payments and delivery inform the assistant">'
+        '<div class="ap-context-sources">'
+        + ''.join('<span>' + icon(name) + escape(label) + '</span>'
+                  for name, label in [('box', 'Orders'), ('wallet', 'Payments'), ('calendar', 'Delivery')])
+        + '</div><div class="ap-context-connector"></div><div class="ap-context-result">'
+        + icon('spark') + '<span>One informed answer</span></div></div>'
+    )
+    action_visual = ('<div class="ap-feature-detail">' + icon('calendar')
+                     + '<span>Check availability</span>' + icon('send') + '<strong>Prepare a change</strong></div>')
+    approval_visual = ('<div class="ap-feature-detail">' + icon('check')
+                       + '<span>Review first.</span><strong>Confirm when ready.</strong></div>')
+    st.markdown('<div class="ap-feature-grid">'
+                + feature_card('spark', 'Intelligent Answers',
+                               'Find order details, payment status and delivery availability using customer-scoped records.', context_visual)
+                + feature_card('bolt', 'Real Actions',
+                               'Prepare a delivery reschedule using available slots.', action_visual)
+                + feature_card('shield', 'Secure Confirmations',
+                               'Review the order, date and window. Nothing is saved until you confirm.', approval_visual)
+                + '</div>', unsafe_allow_html=True)
+    section_heading('', 'A conversation. A clear next step.',
                     'You stay in control from the first question to the final confirmation.')
-    steps = st.columns(3, gap='large')
-    for column, number, title, description in zip(steps, ['01', '02', '03'],
-            ['Ask your question.', 'AI understands and checks your order.', 'Confirm and complete your action.'],
-            ['Open the assistant and ask about your order, payment or preferred delivery date.',
-             'The assistant uses the selected customer’s records and checks available delivery slots.',
-             'Review a delivery proposal, then confirm to save it or cancel to leave the order unchanged.']):
-        with column:
-            st.markdown('<div class="ap-step"><span class="ap-step-number">' + number
-                        + '</span><h3>' + escape(title) + '</h3><p>' + escape(description) + '</p></div>',
-                        unsafe_allow_html=True)
-    section_heading('Supported today', 'Focused on real customer service.',
-                    'Four supported capabilities. No invented tools or payment processing.')
-    st.markdown('<div class="ap-capabilities">' + ''.join(
-        '<span class="ap-capability">' + icon(name) + escape(label) + '</span>'
-        for name, label in [('box', 'Order tracking'), ('wallet', 'Payment status'),
-                            ('calendar', 'Delivery availability'), ('bolt', 'Delivery rescheduling')])
-        + '</div>', unsafe_allow_html=True)
-    st.markdown('<footer class="ap-footer"><span>ActionPilot · Customer support that takes action.</span>'
+    st.markdown('<div class="ap-process">' + ''.join(
+        '<article class="ap-step"><span class="ap-step-icon">' + icon(name)
+        + '</span><h3>' + escape(title) + '</h3><p>' + escape(description) + '</p></article>'
+        for name, title, description in [
+            ('chat', 'Ask your question.', 'Ask about your order, payment or preferred delivery date.'),
+            ('box', 'Check the details.', 'The assistant checks your records and available delivery slots.'),
+            ('shield', 'Confirm the change.', 'Review the proposal. Confirm to save it, or cancel to keep your order as it is.'),
+        ]) + '</div>', unsafe_allow_html=True)
+    with st.container(key='home_capabilities'):
+        intro, capabilities = st.columns([1, 1.35], gap='large')
+        with intro:
+            section_heading('Supported today', 'Focused on real customer service.',
+                            'Four supported capabilities, connected to the demo database.')
+        with capabilities:
+            st.markdown('<div class="ap-capabilities" role="list">' + ''.join(
+                '<div class="ap-capability" role="listitem"><span class="ap-capability-icon">'
+                + icon(name) + '</span><div><h3>' + escape(label) + '</h3><p>'
+                + escape(description) + '</p></div></div>'
+                for name, label, description in [
+                    ('box', 'Order tracking', 'See your item and delivery status.'),
+                    ('wallet', 'Payment status', 'Check the recorded payment status.'),
+                    ('calendar', 'Delivery availability', 'Find a date and window that works.'),
+                    ('refresh', 'Delivery rescheduling', 'Move an eligible order after confirmation.'),
+                ]) + '</div>', unsafe_allow_html=True)
+    st.markdown('<footer class="ap-footer"><div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>'
+                '<p>Customer support that takes action.</p>'
                 '<span>Hackathon project · Synthetic data · Simulated customer sessions</span></footer>',
                 unsafe_allow_html=True)
 
