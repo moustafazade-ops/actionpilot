@@ -4,7 +4,7 @@ import streamlit as st
 from actionpilot.login import logout, require_login
 from actionpilot.seed import seed_demo
 from actionpilot.service import list_customers
-from actionpilot.ui import apply_styles, badge, navigate, select_customer
+from actionpilot.ui import apply_styles, badge, brand_html, navigate, select_customer
 from actionpilot.views import render_admin, render_assistant, render_dashboard, render_home
 
 PAGES = {'Home': 'home', 'AI Assistant': 'auto_awesome', 'Dashboard': 'space_dashboard', 'Admin': 'admin_panel_settings'}
@@ -23,7 +23,7 @@ if page == 'Home':
     render_home(customers)
 else:
     with st.sidebar:
-        st.markdown('<div class="ap-brand"><span class="ap-logo">AP</span>ActionPilot</div>', unsafe_allow_html=True)
+        st.markdown(brand_html(), unsafe_allow_html=True)
         st.caption('Customer support that takes action')
         st.divider()
         for name, symbol in PAGES.items():
