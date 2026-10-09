@@ -21,6 +21,32 @@ stop the app, remove this generated database file, and restart. Initial seeding
 creates enabled, full, disabled, and zero-capacity slots for the next three days
 in Baku time. No database migration is needed from milestone 1.
 
+## Product workspace
+
+The app opens on **Home**, with a live, read-only preview of the selected synthetic
+customer's first order and tomorrow's delivery availability. **Launch AI Assistant**
+opens chat alongside the existing manual order controls; **Explore Dashboard** opens
+owned order cards, actual order counts and delivery planning. Both calls to action
+use the same Streamlit application.
+
+The sidebar connects **Home**, **AI Assistant**, **Dashboard** and **Admin**.
+Customer selection carries across pages. Changing customers clears the previous
+chat and pending proposal, including when switching from Home or Admin. Navigating
+between pages for the same customer preserves chat and proposals; the service still
+rejects a stale proposal if an order changes before confirmation. Admin remains
+read only and shows all synthetic demo records with committed reschedule audit logs.
+
+The shared charcoal and blue design uses local CSS and native Streamlit widgets,
+with vendored Geist variable fonts and Tabler outline icons. Assets and licenses
+live in `actionpilot/assets`; no CDN, frontend framework or extra runtime dependency
+is required. Home uses an asymmetric feature grid, a live customer workspace and
+CSS entrance, scroll and hover effects. Reduced-motion preferences disable these
+effects. On mobile, panels stack with the assistant first and navigation available
+through Streamlit's sidebar.
+Amounts remain labeled in cents because the database does not specify a currency.
+
+Earlier desktop/mobile captures are in [docs/screenshots](docs/screenshots/README.md).
+
 ## Enable real AI chat
 
 Set `OPENAI_API_KEY` in the process environment, or in the gitignored
@@ -51,7 +77,8 @@ If the key is missing, chat is disabled and manual support remains available.
 
 ## Demo
 
-1. Select **Demo Customer 1**. This establishes the demo session's customer context.
+1. Select **Demo Customer 1** in the Home preview, then **Launch AI Assistant**.
+   The sidebar also lets you choose the demo session's customer context.
 2. In chat, try “Show my orders”, then “Is order 1 paid?”
 3. Try “What delivery slots are available tomorrow?”
 4. Try “Move order 1 to tomorrow's morning delivery slot”.
@@ -74,13 +101,23 @@ service with that ID. No tool accepts a `customer_id`, `confirmed`, or SQL argum
 The model cannot select another customer's context or execute a database mutation.
 Switching customers discards the previous chat transcript, agent and proposal.
 
-The model may use only `list_orders`, `get_order`, `get_payment_status`,
+Explicit requests for another demo customer and access-permission questions are
+answered by the application before calling the model or reading orders. The reply
+identifies the selected customer and explains the demo selector's session scope.
+Normal order replies also identify that scope, so selected-customer results cannot
+silently appear to belong to a requested foreign customer. Common numbered,
+spelled-out and ordinal demo customer references are recognized conservatively;
+ownership-scoped service queries remain the authorization boundary for all wording.
+
+The model may use only `get_access_scope`, `list_orders`, `get_order`, `get_payment_status`,
 `get_available_slots`, `propose_reschedule`, and `cancel_reschedule`. Unknown tools,
 extra arguments, malformed JSON, invalid IDs and dates are rejected. IDs must fit
 SQLite's positive signed 64-bit range; tool arguments are limited to 4,096 characters. Tools return
 only scoped records or safe errors. The application renders readable replies from
 validated tool results rather than displaying model-generated claims about facts
-or completed actions. When the model requests no tool, chat shows supported tasks
+or completed actions. `get_access_scope` takes no arguments and renders the trusted
+application customer context. When the model requests no tool, chat explains the
+actual customer scope, shows supported tasks
 and requests an order/date as needed. This keeps replies grounded in the database.
 
 A proposal holds the order and delivery window reviewed by the user and a random
@@ -125,6 +162,9 @@ roll back the order and audit log together.
 
 ## Test
 
+See [BACKEND_TESTING.md](BACKEND_TESTING.md) for reproducible backend checks,
+security coverage and the demo authentication/frontend limitations.
+
 ```bash
 python -m pytest -q
 ```
@@ -148,6 +188,9 @@ app.py                     Streamlit manual/customer/admin interface
    service.py              ownership checks and transactional actions
    agent.py                OpenAI tool loop, validation and confirmation state
    chat_ui.py              chat interface and server-side customer binding
+   views.py                Home, assistant, dashboard and admin page views
+   ui.py                   reusable cards, badges, icons and navigation helpers
+   dashboard.css           shared responsive dark design system
  tests/
    test_service.py         existing operation and concurrency tests
    test_agent.py           mocked AI and SDK transport tests
@@ -155,6 +198,17 @@ app.py                     Streamlit manual/customer/admin interface
  requirements.txt          Streamlit, pytest, official OpenAI SDK
  pytest.ini                test discovery/import configuration
  .env.example              safe configuration template
+ .streamlit/config.toml     native Streamlit dark theme
+ docs/screenshots/          actual UI captures, including a labeled mocked AI test
  TEST_RESULTS.txt          actual verification results
  .gitignore                excludes data, environments and secrets
 ```
+
+## Team and deployment handoff
+
+See [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md) for branch ownership and stable interfaces,
+[MILESTONE_FILE_MAP.md](MILESTONE_FILE_MAP.md) for verified milestone provenance,
+[DEPLOYMENT.md](DEPLOYMENT.md) for the combined Streamlit release workflow, and
+[SETUP_VERIFICATION.md](SETUP_VERIFICATION.md) for actual setup verification.
+These additions are prepared on `feature/deploy` for human review; they do not
+automatically merge code or deploy the public demo.

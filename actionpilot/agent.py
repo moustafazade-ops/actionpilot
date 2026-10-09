@@ -5,21 +5,22 @@ validated tool observations, not model assertions about completed actions.
 """
 import json
 import os
+import re
 import sqlite3
+import unicodedata
 from dataclasses import dataclass
 from uuid import uuid4
 
 from openai import OpenAI, OpenAIError
 
 from actionpilot.service import (
-    ActionError, get_available_slots, get_order, get_payment_status,
+    ActionError, MAX_SQLITE_ID, get_available_slots, get_order, get_payment_status,
     list_orders, reschedule_order, today,
 )
 
 DEFAULT_MODEL = 'gpt-4o-mini'
 MAX_ROUNDS = 6
 MAX_CALLS_PER_ROUND = 8
-MAX_SQLITE_ID = (1 << 63) - 1
 MAX_TOOL_ARGUMENT_LENGTH = 4096
 
 
@@ -33,6 +34,7 @@ def _tool(name, description, properties):
 
 _ID = {'type': 'integer', 'minimum': 1, 'maximum': MAX_SQLITE_ID}
 TOOLS = [
+    _tool('get_access_scope', 'Explain the selected demo customer scope and access restrictions.', {}),
     _tool('list_orders', 'List orders for the current customer; use when no order ID is known.', {}),
     _tool('get_order', 'Retrieve a current customer order.', {'order_id': _ID}),
     _tool('get_payment_status', 'Check stored payment status.', {'order_id': _ID}),
@@ -44,13 +46,56 @@ TOOLS = [
 ]
 _ARGUMENTS = {t['function']['name']: t['function']['parameters']['properties'] for t in TOOLS}
 
+# These references classify a request only. They NEVER establish customer identity.
+_CUSTOMER_REFERENCE = re.compile(
+    r'\b(?:demo[\s_-]+)?customer(?:[\s_-]+(?:id|number))?[\s:#=_-]*'
+    r'(\d+|one|two|three|four|five)\b'
+)
+_CUSTOMER_WORDS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5}
+_CUSTOMER_ORDINAL = re.compile(r'\b(first|second|third|fourth|fifth)\s+(?:demo\s+)?customer\b')
+_CUSTOMER_ORDINALS = {'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5}
+_SCOPE_QUESTION = re.compile(
+    r'\b(?:access|permissions?|scope|authori[sz](?:ed|ation))\b|'
+    r'\bwhose\s+(?:orders?|data|payments?)\b|'
+    r'\b(?:which|what)\s+customer\b|'
+    r'\b(?:all|other|another|every|different)\s+(?:demo\s+)?customers?\b|'
+    r'\bcustomers\b'
+)
+
+
+def _scope_request(text, customer_id):
+    normalized = unicodedata.normalize('NFKC', text).casefold()
+    if _SCOPE_QUESTION.search(normalized):
+        return True
+    if any(_CUSTOMER_ORDINALS[m.group(1)] != customer_id for m in _CUSTOMER_ORDINAL.finditer(normalized)):
+        return True
+    for match in _CUSTOMER_REFERENCE.finditer(normalized):
+        value = match.group(1)
+        # Compare strings for numeric references to avoid parsing unbounded ints.
+        requested = str(_CUSTOMER_WORDS[value]) if value in _CUSTOMER_WORDS else value.lstrip('0')
+        if requested != str(customer_id):
+            return True
+    return False
+
+
+def _render_scope(customer_id):
+    return (
+        'In this assistant session, I can access orders and payment information only for '
+        f'the currently selected customer: Demo Customer {customer_id} (customer ID {customer_id}). '
+        "I cannot access other customers' orders or payments in this session. "
+        'The demo selector sets this scope; chat and the model cannot change it. '
+        'The selector simulates a session and is not production authentication. '
+        'No delivery change was executed.'
+    )
+
 
 class AgentError(ValueError):
     """A sanitized configuration or API failure suitable for display."""
 
 
 def create_client(api_key=None):
-    key = (api_key or os.environ.get('OPENAI_API_KEY', '')).strip()
+    value = api_key if api_key is not None else os.environ.get('OPENAI_API_KEY', '')
+    key = value.strip() if isinstance(value, str) else ''
     if not key:
         raise AgentError('AI chat needs OPENAI_API_KEY in the environment or Streamlit secrets. Manual support remains available.')
     # Bound latency and avoid automatic retries. Never print keys or raw API errors.
@@ -70,7 +115,7 @@ def _arguments(name, raw):
     if not isinstance(raw, str) or len(raw) > MAX_TOOL_ARGUMENT_LENGTH:
         raise ActionError('Tool arguments must be JSON text of at most 4,096 characters.')
     try:
-        args = json.loads(raw)
+        args = json.loads(raw, object_pairs_hook=_unique_arguments)
     except (ValueError, TypeError, RecursionError):
         raise ActionError('Tool arguments must be valid JSON.') from None
     schema = _ARGUMENTS[name]
@@ -85,12 +130,23 @@ def _arguments(name, raw):
     return args
 
 
+def _unique_arguments(pairs):
+    args = {}
+    for key, value in pairs:
+        if key in args:
+            raise ValueError('Duplicate tool argument.')
+        args[key] = value
+    return args
+
+
 def _render_observation(observation):
     """Readable chat replies sourced exclusively from validated tool results."""
     result = observation['result']
     name = observation['tool']
     if 'error' in result:
         return 'Tool error: ' + result['error']
+    if name == 'get_access_scope':
+        return _render_scope(result['customer_id'])
     if name in ('get_order', 'list_orders'):
         orders = [result['order']] if name == 'get_order' else result['orders']
         if not orders:
@@ -119,7 +175,7 @@ def _render_observation(observation):
 
 class SupportAgent:
     def __init__(self, customer_id, client, model=None):
-        if type(customer_id) is not int or customer_id < 1:
+        if type(customer_id) is not int or not 1 <= customer_id <= MAX_SQLITE_ID:
             raise ValueError('A trusted demo customer context is required.')
         self._customer_id = customer_id  # supplied by the application, never tool arguments
         self.client = client
@@ -133,6 +189,8 @@ class SupportAgent:
 
     def _execute_tool(self, name, raw):
         args = _arguments(name, raw)
+        if name == 'get_access_scope':
+            return {'customer_id': self.customer_id}
         if name == 'list_orders':
             return {'orders': list_orders(self.customer_id)}
         if name == 'get_order':
@@ -170,10 +228,20 @@ class SupportAgent:
         # New requests invalidate old confirmation tokens; typed "yes" cannot write.
         self.pending = None
         messages = [*self.messages, {'role': 'user', 'content': text}]
+        # Do not silently substitute selected-customer facts for an explicit
+        # foreign-customer request, even if the planner would call list_orders.
+        if _scope_request(text, self.customer_id):
+            reply = _render_scope(self.customer_id)
+            self._remember_turn(messages, reply)
+            return reply
         observations = []
         system = {
             'role': 'system', 'content': (
                 f'You are ActionPilot customer support. Today in Baku is {today().isoformat()}. '
+                f'The selected demo customer is Demo Customer {self.customer_id}. '
+                'Only this customer\'s orders and payments are accessible in this assistant session. '
+                'For access questions or requests for other customers, use get_access_scope; '
+                'do not substitute the selected customer\'s orders for a different customer. '
                 'Use tools for all order, payment and slot facts. Customer context is supplied '
                 'by the application; never request or supply a customer ID. Never run SQL. '
                 'For delivery changes, first check available slots then propose one. Ask for '
@@ -225,13 +293,20 @@ class SupportAgent:
             reply = ('I can look up your orders, check payment status, or propose a delivery change. '
                      'Please include an order number and a preferred delivery date when relevant. '
                      'No delivery change was executed.')
+        # Identity comes from the application, including for unrecognized
+        # phrasing. Never display untrusted model descriptions of ownership.
+        if not any(o['tool'] == 'get_access_scope' and 'error' not in o['result'] for o in observations):
+            reply = _render_scope(self.customer_id) + '\n\n' + reply
+        self._remember_turn(messages, reply)
+        return reply
+
+    def _remember_turn(self, messages, reply):
         messages.append({'role': 'assistant', 'content': reply})
         # Trim by whole turns, preserving tool-call/result pairing.
         user_starts = [i for i, m in enumerate(messages) if m['role'] == 'user']
         if len(user_starts) > 6:
             messages = messages[user_starts[-6]:]
         self.messages = messages
-        return reply
 
     def confirm(self, token):
         proposal = self.pending

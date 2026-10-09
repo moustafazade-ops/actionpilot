@@ -225,3 +225,6 @@ __marimo__/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Local browser verification artifacts
+/output/playwright/
