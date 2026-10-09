@@ -203,3 +203,12 @@ app.py                     Streamlit manual/customer/admin interface
  TEST_RESULTS.txt          actual verification results
  .gitignore                excludes data, environments and secrets
 ```
+
+## Team and deployment handoff
+
+See [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md) for branch ownership and stable interfaces,
+[MILESTONE_FILE_MAP.md](MILESTONE_FILE_MAP.md) for verified milestone provenance,
+[DEPLOYMENT.md](DEPLOYMENT.md) for the combined Streamlit release workflow, and
+[SETUP_VERIFICATION.md](SETUP_VERIFICATION.md) for actual setup verification.
+These additions are prepared on `feature/deploy` for human review; they do not
+automatically merge code or deploy the public demo.
